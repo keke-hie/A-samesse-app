@@ -24,32 +24,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   bool _isCheckingSession = true;
 
-  final List<Map<String, dynamic>> _slides = [
-    {
-      "badge": "SÉLECTION OFFICIELLE",
-      "title": "L'Excellence du Shopping au Cameroun",
-      "subtitle":
-          "Découvrez les plus belles créations, marques et boutiques vérifiées réunies sur une seule marketplace d'exception.",
-      "icon": Icons.verified_outlined,
-      "tag": "100% Authentique",
-    },
-    {
-      "badge": "VENTES PRIVÉES",
-      "title": "Ventes Flash & Offres Confidentielles",
-      "subtitle":
-          "Accédez chaque semaine à des ventes éphémères exclusives et profitez des meilleurs prix sur la mode et la tech.",
-      "icon": Icons.bolt_outlined,
-      "tag": "Jusqu'à -50%",
-    },
-    {
-      "badge": "SÉRÉNITÉ & CONFIANCE",
-      "title": "Livraison Express & Transactions Sécurisées",
-      "subtitle":
-          "Expédition rapide à Douala, Yaoundé et dans toutes les régions. Réglez à la réception ou via Mobile Money.",
-      "icon": Icons.security_outlined,
-      "tag": "Garantie A'samesse",
-    },
+    // Suppression des slides complexes pour plus de minimalisme
+  final List<String> _taglines = [
+    "Shopping élégant au Cameroun",
+    "Livraison rapide et fiable",
   ];
+
 
   @override
   void initState() {
@@ -84,10 +64,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _startCarouselTimer() {
     _carouselTimer?.cancel();
-    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+        _carouselTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted) return;
       if (_pageController.hasClients) {
-        int nextPage = (_currentPage + 1) % _slides.length;
+        int nextPage = (_currentPage + 1) % _taglines.length;
         _pageController.animateToPage(
           nextPage,
           duration: const Duration(milliseconds: 600),
@@ -95,6 +75,7 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     });
+
   }
 
   Future<void> _checkSessionAndProceed() async {
@@ -109,29 +90,13 @@ class _SplashScreenState extends State<SplashScreen>
       // Utilisateur déjà authentifié : redirection directe selon le rôle
       try {
         final userId = session.user.id;
-        String? role = session.user.userMetadata?['role']?.toString();
-
-        if (role == null) {
-          // Essayer la table utilisateurs
-          final userDoc = await Supabase.instance.client
-              .from('utilisateurs')
-              .select('role')
-              .eq('id', userId)
-              .maybeSingle();
-
-          role = userDoc?['role']?.toString();
-        }
-
-        if (role == null) {
-          // Essayer la table profiles
-          final profileDoc = await Supabase.instance.client
-              .from('profiles')
-              .select('role')
-              .eq('id', userId)
-              .maybeSingle();
-
-          role = profileDoc?['role']?.toString();
-        }
+        String? role;
+        final userDoc = await Supabase.instance.client
+            .from('utilisateurs')
+            .select('role')
+            .eq('id_utilisateur', userId)
+            .maybeSingle();
+        role = userDoc?['role']?.toString() ?? session.user.userMetadata?['role']?.toString();
 
         if (!mounted) return;
 
@@ -143,6 +108,7 @@ class _SplashScreenState extends State<SplashScreen>
             context.go('/delivery/map');
             break;
           case 'admin':
+          case 'administrateur':
             context.go('/admin/dashboard');
             break;
           case 'acheteur':
@@ -251,463 +217,196 @@ class _SplashScreenState extends State<SplashScreen>
       );
     }
 
-    // Grand Landing Page de Bienvenue
     return Scaffold(
       backgroundColor: AppColor.background,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: Column(
-            children: [
-              // Barre Supérieure Élégante
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Badge pays / prestige
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.go('/home'),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColor.primarySoft,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColor.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColor.success,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            "CAMEROUN",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.0,
-                              color: AppColor.textPrimary,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-
-                    // Bouton Explorer en invité
-                    TextButton.icon(
-                      onPressed: () => context.go('/home'),
-                      iconAlignment: IconAlignment.end,
-                      icon: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 13,
+                    child: const Text(
+                      "Explorer",
+                      style: TextStyle(
                         color: AppColor.primary,
-                      ),
-                      label: const Text(
-                        "Explorer",
-                        style: TextStyle(
-                          color: AppColor.primary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        backgroundColor: AppColor.primarySoft,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-
-              // Contenu Principal Déroulant
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                Expanded(
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const SizedBox(height: 16),
-
-                      // Monogramme & Logo de la Maison
-                      Center(
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF8B1E1E), Color(0xFFA53333)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColor.gold.withValues(alpha: 0.8),
-                              width: 2.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColor.primary.withValues(alpha: 0.25),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                      Container(
+                        width: 92,
+                        height: 92,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [Color(0xFF8B1E1E), Color(0xFFA53333)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          child: const Center(
-                            child: Text(
-                              "A'",
-                              style: TextStyle(
-                                fontFamily: 'serif',
-                                fontSize: 38,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x338B2635),
+                              blurRadius: 22,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "A'",
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 14),
-
-                      // Nom de Marque
+                      const SizedBox(height: 22),
                       const Text(
                         "A'samesse",
-                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.0,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
                           color: AppColor.primary,
                         ),
                       ),
-
-                      const SizedBox(height: 4),
-
-                      // Slogan Élégant
+                      const SizedBox(height: 8),
                       const Text(
-                        "L'ART DU SHOPPING & DE L'ÉLÉGANCE",
-                        textAlign: TextAlign.center,
+                        "Marketplace au Cameroun",
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 2.2,
+                          letterSpacing: 2.5,
                           color: AppColor.goldDark,
                         ),
                       ),
-
                       const SizedBox(height: 28),
-
-                      // Carrousel de Présentation des Atouts
-                      SizedBox(
-                        height: 215,
-                        child: PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: (index) {
-                            setState(() {
-                              _currentPage = index;
-                            });
-                          },
-                          itemCount: _slides.length,
-                          itemBuilder: (context, index) {
-                            final slide = _slides[index];
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                              padding: const EdgeInsets.all(22.0),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(24.0),
-                                border: Border.all(color: AppColor.border),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 5),
-                                        decoration: BoxDecoration(
-                                          color: AppColor.goldLight,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          slide['badge'],
-                                          style: const TextStyle(
-                                            color: AppColor.goldDark,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 0.8,
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: AppColor.primarySoft,
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          slide['icon'] as IconData,
-                                          color: AppColor.primary,
-                                          size: 20,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    slide['title'],
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColor.textPrimary,
-                                      height: 1.25,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    slide['subtitle'],
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: AppColor.textSecondary,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF7F7F7),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      slide['tag'],
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        child: Text(
+                          _taglines[_currentPage],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: AppColor.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-
-                      const SizedBox(height: 14),
-
-                      // Indicateurs de Page (Capsules animées)
+                      const SizedBox(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
-                          _slides.length,
-                          (index) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                            height: 6,
-                            width: _currentPage == index ? 24 : 6,
+                          _taglines.length,
+                          (index) => Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: _currentPage == index ? 18 : 8,
+                            height: 8,
                             decoration: BoxDecoration(
-                              color: _currentPage == index
-                                  ? AppColor.primary
-                                  : AppColor.border,
-                              borderRadius: BorderRadius.circular(3),
+                              color: _currentPage == index ? AppColor.primary : AppColor.border,
+                              borderRadius: BorderRadius.circular(99),
                             ),
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 24),
-
-                      // Bandeau de Réassurance / Garanties
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 12.0),
-                        decoration: BoxDecoration(
-                          color: AppColor.cardBackground.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _PillarItem(
-                              icon: Icons.local_shipping_outlined,
-                              label: "Livraison 24/48h",
-                            ),
-                            _DividerDot(),
-                            _PillarItem(
-                              icon: Icons.verified_user_outlined,
-                              label: "Paiement 100% Sûr",
-                            ),
-                            _DividerDot(),
-                            _PillarItem(
-                              icon: Icons.support_agent_outlined,
-                              label: "Support 7j/7",
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
-              ),
-
-              // Actions Inférieures (Boutons d'Appel à l'Action)
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 16,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Bouton Principal : Découvrir la Boutique
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: () => context.go('/home'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColor.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 30.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () => context.go('/home'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColor.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                          child: const Text(
+                            "Découvrir la collection",
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Explorer la Marketplace",
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward_rounded, size: 18),
-                          ],
-                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Ligne Secondaire : Connexion & Inscription
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: OutlinedButton(
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
                               onPressed: () => context.go('/login'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColor.textPrimary,
-                                side: const BorderSide(color: AppColor.border),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(28),
+                                  side: const BorderSide(color: AppColor.border),
                                 ),
                               ),
                               child: const Text(
-                                "Se connecter",
+                                "Connexion",
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  color: AppColor.textPrimary,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextButton(
                               onPressed: () => context.go('/register'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1E1E1E),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColor.darkPill,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(28),
                                 ),
                               ),
                               child: const Text(
-                                "Créer un compte",
+                                "S'inscrire",
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Espace Commerçant / Vendeur
-                    GestureDetector(
-                      onTap: () => context.go('/register'),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: const TextSpan(
-                          style: TextStyle(fontSize: 12, color: AppColor.textSecondary),
-                          children: [
-                            TextSpan(text: "Vous êtes commerçant ? "),
-                            TextSpan(
-                              text: "Vendez sur A'samesse",
-                              style: TextStyle(
-                                color: AppColor.primary,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ],
-                        ),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

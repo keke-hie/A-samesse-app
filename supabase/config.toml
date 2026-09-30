@@ -1,0 +1,7 @@
+project_id = "asamesse-app"
+
+[functions.generate-marketing-copy]
+verify_jwt = true
+
+[functions.enhance-product-image]
+verify_jwt = true

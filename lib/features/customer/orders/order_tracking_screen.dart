@@ -34,6 +34,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       case 'en_cours':
       case 'en cours':
         return AppColor.primary;
+      case 'en_attente_paiement':
+        return const Color(0xFF9E6A16);
       case 'annule':
       case 'annulé':
         return Colors.red;
@@ -50,12 +52,194 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       case 'en_cours':
       case 'en cours':
         return 'En livraison';
+      case 'en_attente_paiement':
+        return 'En attente de paiement';
       case 'annule':
       case 'annulé':
         return 'Annulé';
       default:
         return 'Préparation';
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchOrderLines(dynamic orderId) async {
+    final response = await _supabase
+        .from('lignes_commande')
+      .select('*, produits(nom_produit, image_url)')
+        .eq('id_commande', orderId);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  int _statusStep(String status) {
+    final normalized = status.toLowerCase();
+    if (normalized.contains('paiement')) return -2;
+    if (normalized.contains('annul')) return -1;
+    if (normalized.contains('livraison') || normalized.contains('cours')) return 2;
+    if (normalized == 'livre' || normalized == 'livré') return 3;
+    if (normalized.contains('prepar')) return 1;
+    return 0;
+  }
+
+  void _showOrderDetails(Map<String, dynamic> order) {
+    final orderId = order['id_commande'] ?? order['id'];
+    final status = (order['statut'] ?? 'en_attente').toString();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.72,
+        minChildSize: 0.45,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: AppColor.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Commande #${orderId.toString().length > 8 ? orderId.toString().substring(0, 8).toUpperCase() : orderId.toString().toUpperCase()}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              Text(_formatStatusLabel(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.w700)),
+              const SizedBox(height: 22),
+              _buildStatusProgress(status),
+              const SizedBox(height: 24),
+              const Text('Articles commandés', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary)),
+              const SizedBox(height: 10),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _fetchOrderLines(orderId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Center(child: CircularProgressIndicator(color: AppColor.primary)),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return const Text('Impossible de charger le détail des articles pour le moment.');
+                  }
+                  final lines = snapshot.data ?? [];
+                  if (lines.isEmpty) return const Text('Aucun article détaillé pour cette commande.');
+
+                  return Column(
+                    children: lines.map((line) {
+                      final product = line['produits'] as Map<String, dynamic>? ?? {};
+                      final name = product['nom_produit'] ?? 'Produit';
+                      final quantity = line['quantite'] ?? 1;
+                      final rawPrice = line['prix_unitaire'] ?? 0;
+                      final price = rawPrice is num ? rawPrice.toDouble() : double.tryParse(rawPrice.toString()) ?? 0;
+                      final image = product['image_url'];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(color: const Color(0xFFF9F7F5), borderRadius: BorderRadius.circular(12)),
+                              child: image is String && image.isNotEmpty
+                                  ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(image, fit: BoxFit.cover))
+                                  : const Icon(Icons.shopping_bag_outlined, color: AppColor.primary),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('$name  ×  $quantity', style: const TextStyle(fontWeight: FontWeight.w600))),
+                            Text('${price.toStringAsFixed(0)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColor.primary)),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              const Divider(height: 26),
+              _buildDetailRow('Total', '${_formatAmount(order['montant_total'] ?? order['total'])} FCFA'),
+              if (order['mode_paiement'] != null) ...[
+                const SizedBox(height: 10),
+                _buildDetailRow('Paiement', order['mode_paiement'].toString().replaceAll('_', ' ')),
+              ],
+              if (order['date_commande'] != null) ...[
+                const SizedBox(height: 10),
+                _buildDetailRow('Date', _formatDate(order['date_commande'].toString())),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusProgress(String status) {
+    final currentStep = _statusStep(status);
+    if (currentStep == -2) {
+      return const Text(
+        'La commande sera confirmée après validation du paiement.',
+        style: TextStyle(color: Color(0xFF9E6A16), fontWeight: FontWeight.w600),
+      );
+    }
+    if (currentStep < 0) {
+      return const Text('Cette commande a été annulée.', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600));
+    }
+    const labels = ['Confirmée', 'Préparation', 'En livraison', 'Livrée'];
+    return Column(
+      children: List.generate(labels.length, (index) {
+        final isComplete = index <= currentStep;
+        return Row(
+          children: [
+            Column(
+              children: [
+                Icon(isComplete ? Icons.check_circle : Icons.radio_button_unchecked, size: 20,
+                    color: isComplete ? AppColor.primary : Colors.black26),
+                if (index < labels.length - 1)
+                  Container(width: 2, height: 24, color: index < currentStep ? AppColor.primary : Colors.black12),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Text(labels[index], style: TextStyle(color: isComplete ? AppColor.textPrimary : Colors.black45, fontWeight: isComplete ? FontWeight.w600 : FontWeight.normal)),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF757575))),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColor.textPrimary)),
+      ],
+    );
+  }
+
+  String _formatAmount(dynamic value) {
+    if (value is num) return value.toStringAsFixed(0);
+    return (double.tryParse(value?.toString() ?? '') ?? 0).toStringAsFixed(0);
+  }
+
+  String _formatDate(String value) {
+    final date = DateTime.tryParse(value)?.toLocal();
+    if (date == null) return value;
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   @override
@@ -157,10 +341,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               final String statut = (order['statut'] ?? 'en_cours').toString();
 
               return GestureDetector(
-                onTap: () {
-                  // Navigation vers delivery/map avec transmission du state.extra
-                  context.go('/delivery/map', extra: order);
-                },
+                onTap: () => _showOrderDetails(order),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(

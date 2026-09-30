@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
 
 class CartScreen extends StatefulWidget {
@@ -14,10 +16,111 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   final _supabase = Supabase.instance.client;
-  int deliveryMode = 0; // 0: Express, 1: Standard
+  int deliveryMode = 0;
+  String _selectedPayment = 'orange_money';
   bool _isCheckingOut = false;
+  final Set<String> _selectedLineIds = {};
+  final TextEditingController _deliveryAddressController = TextEditingController();
+  LatLng? _deliveryLocation;
 
-  // Charger le panier et les lignes de panier associées au produit
+  @override
+  void dispose() {
+    _deliveryAddressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseDeliveryLocation() async {
+    var selectedLocation = _deliveryLocation ?? const LatLng(4.0511, 9.7679);
+    var hasSelectedPin = _deliveryLocation != null;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.88,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Adresse de livraison', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _deliveryAddressController,
+                    onChanged: (_) => setSheetState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Adresse ou repère',
+                      hintText: 'Ex. quartier, rue, point de repère',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Déplace la carte puis touche l’emplacement exact.'),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: selectedLocation,
+                          initialZoom: 14,
+                          onTap: (_, point) {
+                            setSheetState(() {
+                              selectedLocation = point;
+                              hasSelectedPin = true;
+                            });
+                          },
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.example.asamesse_app',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: selectedLocation,
+                                width: 44,
+                                height: 44,
+                                child: const Icon(Icons.location_pin, color: AppColor.primary, size: 42),
+                              ),
+                            ],
+                          ),
+                          const RichAttributionWidget(
+                            attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('GPS : ${selectedLocation.latitude.toStringAsFixed(5)}, ${selectedLocation.longitude.toStringAsFixed(5)}'),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: hasSelectedPin && _deliveryAddressController.text.trim().isNotEmpty
+                          ? () => Navigator.pop(sheetContext, true)
+                          : null,
+                      icon: const Icon(Icons.check),
+                      label: const Text('Confirmer cette adresse'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (saved == true && mounted) {
+      setState(() => _deliveryLocation = selectedLocation);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _fetchCartItems() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return [];
@@ -31,28 +134,71 @@ class _CartScreenState extends State<CartScreen> {
 
       if (panier == null) return [];
 
-      final idPanier = panier['id_panier'];
-
       final response = await _supabase
           .from('lignes_panier')
           .select('*, produits(*)')
-          .eq('id_panier', idPanier);
+          .eq('id_panier', panier['id_panier']);
 
-      return List<Map<String, dynamic>>.from(response);
+      final items = List<Map<String, dynamic>>.from(response);
+      if (_selectedLineIds.isEmpty && items.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _selectedLineIds.addAll(items.map((e) => e['id_ligne'].toString()).toSet());
+          });
+        });
+      }
+      return items;
     } catch (_) {
       return [];
     }
   }
 
-  // Mettre à jour la quantité dans la table lignes_panier
+  void _toggleLineSelection(dynamic lineId) {
+    final key = lineId.toString();
+    setState(() {
+      if (_selectedLineIds.contains(key)) {
+        _selectedLineIds.remove(key);
+      } else {
+        _selectedLineIds.add(key);
+      }
+    });
+  }
+
+  void _toggleSelectAll(List<Map<String, dynamic>> items) {
+    setState(() {
+      if (_selectedLineIds.length == items.length) {
+        _selectedLineIds.clear();
+      } else {
+        _selectedLineIds
+          ..clear()
+          ..addAll(items.map((e) => e['id_ligne'].toString()));
+      }
+    });
+  }
+
   Future<void> _updateQuantity(dynamic lineId, int currentQty, int delta) async {
     final newQty = currentQty + delta;
     if (newQty <= 0) {
-      await _supabase.from('lignes_panier').delete().eq('id', lineId);
+      await _supabase.from('lignes_panier').delete().eq('id_ligne', lineId);
     } else {
-      await _supabase.from('lignes_panier').update({'quantite': newQty}).eq('id', lineId);
+      await _supabase.from('lignes_panier').update({'quantite': newQty}).eq('id_ligne', lineId);
     }
-    setState(() {});
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _removeSelected() async {
+    if (_selectedLineIds.isEmpty) return;
+
+    for (final id in List<String>.from(_selectedLineIds)) {
+      await _supabase.from('lignes_panier').delete().eq('id_ligne', id);
+    }
+
+    if (mounted) {
+      setState(() {
+        _selectedLineIds.clear();
+      });
+    }
   }
 
   Future<void> _checkout(double totalAmount, List<Map<String, dynamic>> items) async {
@@ -60,6 +206,41 @@ class _CartScreenState extends State<CartScreen> {
     if (user == null) {
       context.go('/login');
       return;
+    }
+
+    final selectedItems = items.where((item) => _selectedLineIds.contains(item['id_ligne'].toString())).toList();
+    if (selectedItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sélectionnez au moins un article pour valider le panier.')),
+      );
+      return;
+    }
+
+    if (_deliveryLocation == null || _deliveryAddressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choisis le point et saisis l’adresse de livraison.')),
+      );
+      return;
+    }
+
+    for (final item in selectedItems) {
+      final product = item['produits'] as Map<String, dynamic>? ?? {};
+      final quantity = (item['quantite'] as num?)?.toInt() ?? 1;
+      final productId = product['id_produit'];
+      final stock = product['stock'];
+
+      if (productId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Un article sélectionné n’a pas d’identifiant produit valide.')),
+        );
+        return;
+      }
+      if (stock is num && quantity > stock.toInt()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stock insuffisant pour ${product['nom_produit'] ?? 'un article'} (disponible : ${stock.toInt()}).')),
+        );
+        return;
+      }
     }
 
     setState(() => _isCheckingOut = true);
@@ -70,7 +251,11 @@ class _CartScreenState extends State<CartScreen> {
           .insert({
             'id_acheteur': user.id,
             'montant_total': totalAmount,
-            'statut': 'en_cours',
+            'statut': 'en_attente_paiement',
+            'mode_paiement': _selectedPayment,
+            'adresse_livraison': _deliveryAddressController.text.trim(),
+            'latitude_destination': _deliveryLocation!.latitude,
+            'longitude_destination': _deliveryLocation!.longitude,
             'date_commande': DateTime.now().toIso8601String(),
           })
           .select('id_commande')
@@ -78,39 +263,52 @@ class _CartScreenState extends State<CartScreen> {
 
       final idCommande = orderRes['id_commande'];
 
-      // Vider le panier
-      final panier = await _supabase
-          .from('paniers')
-          .select('id_panier')
-          .eq('id_acheteur', user.id)
-          .maybeSingle();
+      for (final item in selectedItems) {
+        final produit = item['produits'] ?? {};
+        final productId = produit['id_produit'];
+        final qty = (item['quantite'] ?? 1) as int;
+        final unitPrice = (produit['prix'] ?? 0) is num
+            ? (produit['prix'] ?? 0).toDouble()
+            : (double.tryParse((produit['prix'] ?? 0).toString()) ?? 0.0);
 
-      if (panier != null) {
-        await _supabase.from('lignes_panier').delete().eq('id_panier', panier['id_panier']);
+        if (productId != null) {
+          await _supabase.from('lignes_commande').insert({
+            'id_commande': idCommande,
+            'id_produit': productId,
+            'quantite': qty,
+            'prix_unitaire': unitPrice,
+            'couleur': item['couleur'] ?? '',
+            'taille': item['taille'] ?? '',
+          });
+
+        }
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Commande validée avec succès !"),
+            content: Text('Commande enregistrée en attente de paiement. Le stock sera réservé après confirmation.'),
             backgroundColor: Color(0xFF1E1E1E),
           ),
         );
-        // Rediriger vers le suivi de commande en passant state.extra
+
         context.go('/orders', extra: {
           'id_commande': idCommande,
           'montant_total': totalAmount,
-          'statut': 'en_cours',
+          'statut': 'en_attente_paiement',
+          'mode_paiement': _selectedPayment,
         });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur lors de la commande: $e")),
+          SnackBar(content: Text('Erreur lors de la commande : $e')),
         );
       }
     } finally {
-      if (mounted) setState(() => _isCheckingOut = false);
+      if (mounted) {
+        setState(() => _isCheckingOut = false);
+      }
     }
   }
 
@@ -119,22 +317,16 @@ class _CartScreenState extends State<CartScreen> {
     final userId = _supabase.auth.currentUser?.id;
 
     return Scaffold(
-      backgroundColor: AppColor.background, // Exact rose poudré #F9EAE5
+      backgroundColor: AppColor.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColor.textPrimary, size: 24),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/home');
-            }
-          },
+          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
         ),
         title: const Text(
-          "Mon Panier",
+          'Mon panier',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -145,39 +337,7 @@ class _CartScreenState extends State<CartScreen> {
         centerTitle: true,
       ),
       body: userId == null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.lock_outline_rounded, size: 40, color: AppColor.primary),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      "Connectez-vous pour voir votre panier",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
-                    ),
-                    const SizedBox(height: 18),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColor.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      ),
-                      onPressed: () => context.go('/login'),
-                      child: const Text("Se connecter", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            )
+          ? _buildGuestState()
           : FutureBuilder<List<Map<String, dynamic>>>(
               future: _fetchCartItems(),
               builder: (context, snapshot) {
@@ -186,60 +346,26 @@ class _CartScreenState extends State<CartScreen> {
                 }
 
                 final cartItems = snapshot.data ?? [];
+                final selectedItems = cartItems
+                  .where((item) => _selectedLineIds.contains(item['id_ligne'].toString()))
+                    .toList();
 
                 if (cartItems.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(22),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColor.primary),
-                          ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            "Votre panier est vide",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            "Découvrez nos dernières nouveautés et ajoutez vos articles coups de cœur.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 13, color: Color(0xFF757575)),
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColor.primary,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            ),
-                            onPressed: () => context.go('/home'),
-                            child: const Text("Explorer les articles", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  return _buildEmptyCartState();
                 }
 
-                // Calcul dynamique des prix
                 double subtotal = 0;
-                for (var item in cartItems) {
+                for (final item in selectedItems) {
                   final produit = item['produits'] ?? {};
-                  final double price = (produit['prix'] ?? produit['price'] ?? 0).toDouble();
-                  final int qty = (item['quantite'] ?? 1) as int;
+                  final price = (produit['prix'] ?? 0) is num
+                      ? (produit['prix'] ?? 0).toDouble()
+                      : (double.tryParse((produit['prix'] ?? 0).toString()) ?? 0.0);
+                  final qty = (item['quantite'] ?? 1) as int;
                   subtotal += price * qty;
                 }
 
-                double deliveryFee = deliveryMode == 0 ? 1500.0 : 0.0;
-                double total = subtotal + deliveryFee;
+                final double deliveryFee = deliveryMode == 0 ? 1500.0 : 0.0;
+                final double total = subtotal + deliveryFee;
 
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 30),
@@ -251,44 +377,108 @@ class _CartScreenState extends State<CartScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            "Mes Articles",
+                            'Mes articles',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
                           ),
                           Text(
-                            "${cartItems.length} article(s)",
-                            style: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w600),
+                            '${selectedItems.length}/${cartItems.length} sélectionné(s)',
+                            style: const TextStyle(fontSize: 12, color: AppColor.textSecondary, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14),
-
-                      // Liste dynamique des lignes du panier
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: selectedItems.length == cartItems.length && cartItems.isNotEmpty,
+                            activeColor: AppColor.primary,
+                            onChanged: (_) => _toggleSelectAll(cartItems),
+                          ),
+                          const Expanded(child: Text('Tout sélectionner')),
+                          if (_selectedLineIds.isNotEmpty)
+                            TextButton(
+                              onPressed: _removeSelected,
+                              child: const Text('Supprimer sélection', style: TextStyle(color: AppColor.primary)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: cartItems.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           return _buildCartItem(cartItems[index]);
                         },
                       ),
-
                       const SizedBox(height: 24),
                       const Text(
-                        "Mode de Livraison",
+                        'Adresse de livraison',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: _chooseDeliveryLocation,
+                        icon: const Icon(Icons.map_outlined),
+                        label: Text(
+                          _deliveryLocation == null
+                              ? 'Choisir sur la carte'
+                              : '${_deliveryAddressController.text} · ${_deliveryLocation!.latitude.toStringAsFixed(4)}, ${_deliveryLocation!.longitude.toStringAsFixed(4)}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Paiement',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
                       ),
                       const SizedBox(height: 12),
-
-                      // Mode de livraison (Express vs Standard)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildPaymentMethod(
+                              key: 'orange_money',
+                              label: 'Orange Money',
+                              icon: Icons.phone_android_rounded,
+                              color: const Color(0xFFFFA000),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildPaymentMethod(
+                              key: 'mobile_money',
+                              label: 'Mobile Money',
+                              icon: Icons.smartphone_rounded,
+                              color: const Color(0xFF3F51B5),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildPaymentMethod(
+                              key: 'card',
+                              label: 'Carte',
+                              icon: Icons.credit_card_rounded,
+                              color: const Color(0xFF4CAF50),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Mode de livraison',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
+                      ),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
                             child: _buildDeliveryOption(
                               index: 0,
-                              title: "Express",
-                              subtitle: "24h à 48h",
-                              price: "1 500 FCFA",
+                              title: 'Express',
+                              subtitle: '24h à 48h',
+                              price: '1 500 FCFA',
                               icon: Icons.bolt_rounded,
                             ),
                           ),
@@ -296,18 +486,15 @@ class _CartScreenState extends State<CartScreen> {
                           Expanded(
                             child: _buildDeliveryOption(
                               index: 1,
-                              title: "Standard",
-                              subtitle: "3-5 jours",
-                              price: "Gratuit",
+                              title: 'Standard',
+                              subtitle: '3-5 jours',
+                              price: 'Gratuit',
                               icon: Icons.local_shipping_outlined,
                             ),
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Récapitulatif Prix (Carte Blanche Pure)
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -323,22 +510,19 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                         child: Column(
                           children: [
-                            _buildSummaryRow("Sous-total", "${subtotal.toStringAsFixed(0)} FCFA"),
+                            _buildSummaryRow('Sous-total', '${subtotal.toStringAsFixed(0)} FCFA'),
                             const SizedBox(height: 8),
-                            _buildSummaryRow(
-                              "Frais de livraison",
-                              deliveryFee == 0 ? "Gratuit" : "${deliveryFee.toStringAsFixed(0)} FCFA",
-                            ),
+                            _buildSummaryRow('Frais de livraison', deliveryFee == 0 ? 'Gratuit' : '${deliveryFee.toStringAsFixed(0)} FCFA'),
                             const Divider(height: 24),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text(
-                                  "Total à payer",
+                                  'Total à payer',
                                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
                                 ),
                                 Text(
-                                  "${total.toStringAsFixed(0)} FCFA",
+                                  '${total.toStringAsFixed(0)} FCFA',
                                   style: const TextStyle(
                                     fontSize: 19,
                                     fontWeight: FontWeight.bold,
@@ -350,16 +534,14 @@ class _CartScreenState extends State<CartScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 24),
-
                       SizedBox(
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
                           onPressed: _isCheckingOut ? null : () => _checkout(total, cartItems),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColor.primary, // Exact bordeaux #8B2635
+                            backgroundColor: AppColor.primary,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
@@ -369,10 +551,7 @@ class _CartScreenState extends State<CartScreen> {
                               : const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text(
-                                      "Passer la commande",
-                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                                    ),
+                                    Text('Valider le panier', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                                     SizedBox(width: 8),
                                     Icon(Icons.arrow_forward_rounded, size: 18),
                                   ],
@@ -387,13 +566,123 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: const Icon(Icons.lock_outline_rounded, size: 40, color: AppColor.primary),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Connectez-vous pour voir votre panier',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColor.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              onPressed: () => context.go('/login'),
+              child: const Text('Se connecter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCartState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColor.primary),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Votre panier est vide',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColor.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Découvrez nos dernières nouveautés et ajoutez vos articles.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF757575)),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColor.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              onPressed: () => context.go('/home'),
+              child: const Text('Explorer les articles', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethod({
+    required String key,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    final isSelected = _selectedPayment == key;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedPayment = key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isSelected ? color.withValues(alpha: 0.12) : Colors.white,
+          border: Border.all(color: isSelected ? color : AppColor.border, width: 1.2),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isSelected ? color : AppColor.textSecondary),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? color : AppColor.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCartItem(Map<String, dynamic> item) {
-    final lineId = item['id'];
+    final lineId = item['id_ligne'];
     final produit = item['produits'] ?? {};
     final String name = produit['nom_produit'] ?? produit['nom'] ?? 'Produit';
-    final double price = (produit['prix'] ?? produit['price'] ?? 0).toDouble();
+    final double price = (produit['prix'] ?? 0) is num
+      ? (produit['prix'] ?? 0).toDouble()
+      : (double.tryParse((produit['prix'] ?? 0).toString()) ?? 0.0);
     final int qty = (item['quantite'] ?? 1) as int;
-    final String? imageUrl = produit['images'] ?? produit['image_url'];
+    final String? imageUrl = produit['image_url'] ?? produit['images'];
+    final rawStock = produit['stock'];
+    final bool inStock = rawStock is num ? rawStock.toInt() > 0 : true;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -410,6 +699,11 @@ class _CartScreenState extends State<CartScreen> {
       ),
       child: Row(
         children: [
+          Checkbox(
+            value: _selectedLineIds.contains(lineId.toString()),
+            activeColor: AppColor.primary,
+            onChanged: (_) => _toggleLineSelection(lineId),
+          ),
           Container(
             width: 65,
             height: 65,
@@ -437,8 +731,17 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "${price.toStringAsFixed(0)} FCFA",
+                  '${price.toStringAsFixed(0)} FCFA',
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppColor.primary, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  inStock ? 'En stock' : 'Rupture de stock',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: inStock ? const Color(0xFF2E7D32) : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -449,7 +752,7 @@ class _CartScreenState extends State<CartScreen> {
                 onPressed: () => _updateQuantity(lineId, qty, -1),
                 icon: const Icon(Icons.remove_circle_outline_rounded, size: 20, color: Colors.grey),
               ),
-              Text("$qty", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               IconButton(
                 onPressed: () => _updateQuantity(lineId, qty, 1),
                 icon: const Icon(Icons.add_circle_rounded, size: 20, color: AppColor.primary),
@@ -476,10 +779,7 @@ class _CartScreenState extends State<CartScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColor.primary : Colors.transparent,
-            width: 1.5,
-          ),
+          border: Border.all(color: isSelected ? AppColor.primary : Colors.transparent, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),

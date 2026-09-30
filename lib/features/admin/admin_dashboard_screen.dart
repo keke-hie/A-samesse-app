@@ -42,11 +42,11 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Cartes de statistiques principales
-            _buildStatCard("VENTES TOTALES", "12 450,00€", "+12.5%", Icons.account_balance_wallet_outlined),
+            _buildStatCard("VENTES TOTALES", "Données non disponibles", "", Icons.account_balance_wallet_outlined),
             const SizedBox(height: 12),
-            _buildStatCard("COMMANDES", "154", "+4%", Icons.shopping_bag_outlined),
+            _buildStatCard("COMMANDES", "Données non disponibles", "", Icons.shopping_bag_outlined),
             const SizedBox(height: 12),
-            _buildStatCard("PRODUITS ACTIFS", "48", "", Icons.inventory_2_outlined),
+            _buildStatCard("PRODUITS ACTIFS", "Données non disponibles", "", Icons.inventory_2_outlined),
 
             const SizedBox(height: 24),
             const Text(
@@ -79,7 +79,7 @@ class AdminDashboardScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.brown[700],
+                color: AppColor.primary,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -96,9 +96,10 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 12),
 
             // Liste Produits Phares
-            _buildProductRow("A'samesse Pro", "450€ • 24 en stock"),
-            _buildProductRow("Aura Speaker", "320€ • 12 en stock"),
-            _buildProductRow("Pods Pure", "190€ • 56 en stock"),
+            const Text(
+              'Les produits de la boutique apparaîtront ici lorsque les données seront connectées.',
+              style: TextStyle(color: AppColor.textSecondary),
+            ),
           ],
         ),
       ),
@@ -148,24 +149,4 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProductRow(String title, String subtitle) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8))),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            ],
-          )
-        ],
-      ),
-    );
-  }
 }

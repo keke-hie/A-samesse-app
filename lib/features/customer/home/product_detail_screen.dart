@@ -125,7 +125,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _isAddingToCart = true);
 
     try {
-      final idProduit = widget.product?['id'] ?? widget.product?['id_produit'] ?? '1';
+      final idProduit = widget.product?['id_produit'];
+      if (idProduit == null) {
+        throw Exception('Identifiant du produit manquant. Ouvrez un produit chargé depuis la boutique.');
+      }
       final nom = widget.product?['nom_produit'] ?? 'Produit';
       final selectedColorName = _availableColors[_selectedColorIndex]['name'];
       final selectedSize = _availableSizes[_selectedSizeIndex];
@@ -136,7 +139,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           .eq('id_acheteur', user.id)
           .maybeSingle();
 
-      int idPanier;
+      dynamic idPanier;
       if (panierResponse == null) {
         final newPanier = await supabase
             .from('paniers')
@@ -186,10 +189,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
         );
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_quantite article(s) ajouté(s) au panier')),
+          SnackBar(content: Text('Ajout au panier impossible : $error')),
         );
       }
     } finally {
@@ -203,7 +206,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final rawUnitPrice = _getRawPrice();
     final totalPrice = rawUnitPrice * _quantite;
     final prixFormatted = _formatPrice(rawUnitPrice);
-    final String? imageUrl = widget.product?['images'] ?? widget.product?['image_url'];
+    final String? imageUrl = widget.product?['image_url'] ?? widget.product?['images'];
     final int stock = (widget.product?['stock'] is num)
         ? (widget.product?['stock'] as num).toInt()
         : int.tryParse(widget.product?['stock']?.toString() ?? '15') ?? 15;

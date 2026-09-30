@@ -32,7 +32,7 @@ class _DealsScreenState extends State<DealsScreen> {
         final data = await _supabase
             .from('utilisateurs') // Correction : utilisation de la bonne table 'utilisateurs'
             .select('role')
-            .eq('id', user.id)
+            .eq('id_utilisateur', user.id)
             .maybeSingle();
         
         if (data != null && data['role']?.toString().toLowerCase() == 'vendeur') {
@@ -329,7 +329,7 @@ class _DealsScreenState extends State<DealsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            "$typeVente - Produit #${deal['id_produit']}",
+            "$typeVente - Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),

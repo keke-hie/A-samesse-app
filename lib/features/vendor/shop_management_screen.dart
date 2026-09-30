@@ -24,6 +24,7 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
   int _nombreAbonnes = 0;
   String _dateCreation = '';
   List<Map<String, dynamic>> _produitsBoutique = [];
+  final Set<String> _retouchingProductIds = {};
 
   @override
   void initState() {
@@ -66,6 +67,96 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
     } catch (e) {
       print('Erreur : $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _transformerPhotoProduit(Map<String, dynamic> produit, {required bool restaurer}) async {
+    final productId = produit['id_produit']?.toString();
+    if (productId == null || _retouchingProductIds.contains(productId)) return;
+
+    if (!restaurer) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Générer une image catalogue ?'),
+          content: const Text('Gemini créera une nouvelle variante studio. Cet appel d’image peut être facturé ; l’original restera conservé.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Générer')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _retouchingProductIds.add(productId));
+    try {
+      final response = await supabase.functions.invoke(
+        'enhance-product-image',
+        body: {
+          'productId': productId,
+          'restoreOriginal': restaurer,
+        },
+      );
+      final data = response.data;
+      if (response.status < 200 || response.status >= 300 || data is! Map || data['image_url'] is! String) {
+        throw Exception(data is Map ? data['error'] ?? 'Opération image impossible.' : 'Opération image impossible.');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        for (final item in _produitsBoutique) {
+          if (item['id_produit']?.toString() == productId) item['image_url'] = data['image_url'];
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(restaurer ? 'Photo originale restaurée.' : 'Image catalogue mise à jour.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Opération image impossible : $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _retouchingProductIds.remove(productId));
+    }
+  }
+
+  Future<void> _retoucherPhotoProduit(Map<String, dynamic> produit) async {
+    final productId = produit['id_produit']?.toString();
+    if (productId == null || _retouchingProductIds.contains(productId)) return;
+
+    setState(() => _retouchingProductIds.add(productId));
+    try {
+      final response = await supabase.functions.invoke(
+        'enhance-product-image',
+        body: {'productId': productId},
+      );
+      final data = response.data;
+      if (response.status < 200 || response.status >= 300 || data is! Map || data['image_url'] is! String) {
+        throw Exception(data is Map ? data['error'] ?? 'Retouche impossible.' : 'Retouche impossible.');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        for (final item in _produitsBoutique) {
+          if (item['id_produit']?.toString() == productId) {
+            item['image_url'] = data['image_url'];
+          }
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo catalogue professionnelle mise à jour.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Retouche de la photo impossible : $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _retouchingProductIds.remove(productId));
     }
   }
 
@@ -254,7 +345,7 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final produit = _produitsBoutique[index];
-                          final imageUrl = produit['images'] ?? produit['image_url'];
+                          final imageUrl = produit['image_url'] ?? produit['images'];
 
                           return GestureDetector(
                             behavior: HitTestBehavior.opaque,
@@ -291,16 +382,55 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
                                       ),
                                       child: ClipRRect(
                                         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                                        child: imageUrl != null && imageUrl.toString().isNotEmpty
-                                            ? Image.network(
-                                                imageUrl,
-                                                fit: BoxFit.cover,
-                                                width: double.infinity,
-                                                height: double.infinity,
-                                                errorBuilder: (context, error, stackTrace) => 
-                                                    const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-                                              )
-                                            : const Center(child: Icon(Icons.image, color: Colors.grey, size: 40)),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            imageUrl != null && imageUrl.toString().isNotEmpty
+                                                ? Image.network(
+                                                    imageUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) =>
+                                                        const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                                  )
+                                                : const Center(child: Icon(Icons.image, color: Colors.grey, size: 40)),
+                                            Positioned(
+                                              top: 4,
+                                              right: 4,
+                                              child: Column(
+                                                children: [
+                                                  if ((produit['image_originale_url'] ?? '').toString().isNotEmpty)
+                                                    Material(
+                                                      color: Colors.white.withValues(alpha: 0.92),
+                                                      shape: const CircleBorder(),
+                                                      child: IconButton(
+                                                        tooltip: 'Restaurer la photo originale',
+                                                        visualDensity: VisualDensity.compact,
+                                                        onPressed: _retouchingProductIds.contains(produit['id_produit'].toString())
+                                                            ? null
+                                                            : () => _transformerPhotoProduit(produit, restaurer: true),
+                                                        icon: const Icon(Icons.history, color: AppColor.textPrimary, size: 18),
+                                                      ),
+                                                    ),
+                                                  const SizedBox(height: 4),
+                                                  Material(
+                                                    color: Colors.white.withValues(alpha: 0.92),
+                                                    shape: const CircleBorder(),
+                                                    child: IconButton(
+                                                      tooltip: 'Générer une image catalogue avec Gemini',
+                                                      visualDensity: VisualDensity.compact,
+                                                      onPressed: _retouchingProductIds.contains(produit['id_produit'].toString())
+                                                          ? null
+                                                          : () => _transformerPhotoProduit(produit, restaurer: false),
+                                                      icon: _retouchingProductIds.contains(produit['id_produit'].toString())
+                                                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                                          : const Icon(Icons.auto_awesome, color: AppColor.primary, size: 18),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),

@@ -27,7 +27,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .eq('id_utilisateur', userAuth.id)
         .maybeSingle();
 
-    return response;
+    if (response == null) return null;
+
+    final buyer = await _supabase
+      .from('acheteurs')
+      .select('adresse_livraison')
+      .eq('id_acheteur', userAuth.id)
+      .maybeSingle();
+
+    return {...response, 'adresse_livraison': buyer?['adresse_livraison']};
   }
 
   // --- Fonction de déconnexion ---
@@ -118,8 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showEditProfileDialog(Map<String, dynamic>? data) {
     final nameController = TextEditingController(text: data?['nom'] ?? '');
     final phoneController = TextEditingController(text: data?['telephone'] ?? '');
-    final adresseController = TextEditingController(text: data?['adresse'] ?? '');
-    final villeController = TextEditingController(text: data?['ville'] ?? '');
+    final adresseController = TextEditingController(text: data?['adresse_livraison'] ?? '');
 
     showDialog(
       context: context,
@@ -155,13 +162,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: villeController,
-                decoration: InputDecoration(
-                  labelText: "Ville",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
             ],
           ),
         ),
@@ -183,9 +183,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   await _supabase.from('utilisateurs').update({
                     'nom': nameController.text.trim(),
                     'telephone': phoneController.text.trim(),
-                    'adresse': adresseController.text.trim(),
-                    'ville': villeController.text.trim(),
                   }).eq('id_utilisateur', userAuth.id);
+                  await _supabase.from('acheteurs').update({
+                    'adresse_livraison': adresseController.text.trim(),
+                  }).eq('id_acheteur', userAuth.id);
 
                   // 2. Fermer la boîte de dialogue proprement
                   if (mounted) Navigator.pop(context);
@@ -343,36 +344,156 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- Modal Signaler un Litige ---
-  void _showDisputeModal() {
-    final disputeController = TextEditingController();
-    showDialog(
+  Future<void> _showDisputeModal() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    List<Map<String, dynamic>> orders;
+    try {
+      final response = await _supabase
+          .from('commandes')
+          .select('id_commande, montant_total, date_commande')
+          .eq('id_acheteur', user.id)
+          .order('date_commande', ascending: false);
+      orders = List<Map<String, dynamic>>.from(response);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chargement des commandes impossible : $error')),
+        );
+      }
+      return;
+    }
+
+    if (orders.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucune commande à associer au litige.')),
+      );
+      return;
+    }
+
+    final descriptionController = TextEditingController();
+    final reasons = ['Commande non reçue', 'Article endommagé', 'Article non conforme', 'Problème de paiement', 'Autre'];
+    String selectedOrderId = orders.first['id_commande'].toString();
+    String selectedReason = reasons.first;
+    XFile? evidence;
+    bool isSubmitting = false;
+
+    await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Signaler un litige / réclamation"),
-        content: TextField(
-          controller: disputeController,
-          maxLines: 4,
-          decoration: InputDecoration(
-            hintText: "Décrivez votre problème concernant une commande ou un paiement...",
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Signaler un litige'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedOrderId,
+                  decoration: const InputDecoration(labelText: 'Commande'),
+                  items: orders.map((order) {
+                    final orderId = order['id_commande'].toString();
+                    return DropdownMenuItem(
+                      value: orderId,
+                      child: Text('Commande ${orderId.substring(0, 8).toUpperCase()}'),
+                    );
+                  }).toList(),
+                  onChanged: isSubmitting ? null : (value) {
+                    if (value != null) setDialogState(() => selectedOrderId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedReason,
+                  decoration: const InputDecoration(labelText: 'Motif'),
+                  items: reasons.map((reason) => DropdownMenuItem(value: reason, child: Text(reason))).toList(),
+                  onChanged: isSubmitting ? null : (value) {
+                    if (value != null) setDialogState(() => selectedReason = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Détails',
+                    hintText: 'Explique le problème rencontré.',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: isSubmitting ? null : () async {
+                    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 75);
+                    if (picked != null) setDialogState(() => evidence = picked);
+                  },
+                  icon: const Icon(Icons.attach_file),
+                  label: Text(evidence?.name ?? 'Joindre une preuve (image)'),
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Votre litige a été transmis au support A'samesse.")),
-              );
-            },
-            child: const Text("Envoyer", style: TextStyle(color: Colors.white)),
-          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: isSubmitting ? null : () async {
+                final description = descriptionController.text.trim();
+                if (description.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Décris le problème avant d’envoyer le dossier.')),
+                  );
+                  return;
+                }
+
+                setDialogState(() => isSubmitting = true);
+                try {
+                  final dispute = await _supabase.from('litiges').insert({
+                    'id_commande': selectedOrderId,
+                    'id_acheteur': user.id,
+                    'motif': selectedReason,
+                    'description': description,
+                  }).select('id_litige').single();
+
+                  if (evidence != null) {
+                    final extension = evidence!.name.split('.').last.toLowerCase();
+                    final contentType = extension == 'png' ? 'image/png' : 'image/jpeg';
+                    final path = '${user.id}/${dispute['id_litige']}/${DateTime.now().millisecondsSinceEpoch}.$extension';
+                    await _supabase.storage.from('preuves-litiges').uploadBinary(
+                      path,
+                      await evidence!.readAsBytes(),
+                      fileOptions: FileOptions(contentType: contentType),
+                    );
+                    await _supabase.from('litiges').update({'preuves': [path]}).eq('id_litige', dispute['id_litige']);
+                  }
+
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Le litige est enregistré pour examen par l’administration.')),
+                  );
+                } catch (error) {
+                  if (dialogContext.mounted) {
+                    setDialogState(() => isSubmitting = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Envoi du litige impossible : $error')),
+                    );
+                  }
+                }
+              },
+              child: isSubmitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Envoyer', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         ],
       ),
     );
+    descriptionController.dispose();
   }
 
   @override

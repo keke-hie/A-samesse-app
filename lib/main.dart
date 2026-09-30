@@ -26,10 +26,58 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: AppColor.background,
-        primaryColor: AppColor.primary,
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColor.primary,
+          brightness: Brightness.light,
+          primary: AppColor.primary,
+          secondary: AppColor.gold,
           surface: AppColor.background,
+          error: const Color(0xFFB42332),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColor.background,
+          foregroundColor: AppColor.textPrimary,
+          elevation: 0,
+          centerTitle: true,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: AppColor.inputBackground,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColor.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColor.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColor.primary, width: 1.5),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColor.primary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColor.primary,
+            side: const BorderSide(color: AppColor.border),
+            minimumSize: const Size.fromHeight(44),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColor.textPrimary,
+          contentTextStyle: TextStyle(color: Colors.white),
         ),
       ),
       routerConfig: appRouter,

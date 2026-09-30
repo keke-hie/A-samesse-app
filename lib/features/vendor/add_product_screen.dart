@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -80,19 +81,47 @@ class _AddProductScreenState extends State<AddProductScreen> {
     try {
       final supabase = Supabase.instance.client;
       const storageBucket = 'images'; // Le bucket Supabase s'appelle 'images'
-      
-      final bytes = await _imageFile!.readAsBytes();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.name}';
 
-      // 1. Upload de l'image dans le bucket 'images'
+      final originalBytes = await _imageFile!.readAsBytes();
+      final extension = _imageFile!.name.split('.').last.toLowerCase();
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      final enhancement = await supabase.functions.invoke(
+        'enhance-product-image',
+        body: {
+          'productName': _nomController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'imageBase64': base64Encode(originalBytes),
+          'mimeType': mimeType,
+        },
+      );
+
+      if (enhancement.status < 200 || enhancement.status >= 300 || enhancement.data is! Map) {
+        final data = enhancement.data;
+        throw Exception(data is Map ? data['error'] ?? 'Retouche de la photo impossible.' : 'Retouche de la photo impossible.');
+      }
+
+      final enhancedBase64 = enhancement.data['imageBase64'];
+      if (enhancedBase64 is! String || enhancedBase64.isEmpty) {
+        throw Exception('Gemini n’a pas renvoyé de photo retouchée.');
+      }
+      final enhancedBytes = base64Decode(enhancedBase64);
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.name.split('.').first}.jpg';
+      final originalPath = 'originals/$fileName';
+      final enhancedPath = 'products/$fileName';
+
       await supabase.storage.from(storageBucket).uploadBinary(
-        fileName,
-        bytes,
+        originalPath,
+        originalBytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+      await supabase.storage.from(storageBucket).uploadBinary(
+        enhancedPath,
+        enhancedBytes,
         fileOptions: const FileOptions(upsert: true),
       );
 
-      // 2. Récupération de l'URL publique
-      final publicUrl = supabase.storage.from(storageBucket).getPublicUrl(fileName);
+      final originalUrl = supabase.storage.from(storageBucket).getPublicUrl(originalPath);
+      final publicUrl = supabase.storage.from(storageBucket).getPublicUrl(enhancedPath);
 
       // 3. Insertion dans la table `produits`
       await supabase.from('produits').insert({
@@ -102,9 +131,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'description': _descriptionController.text,
         'prix': double.parse(_prixController.text),
         'stock': int.parse(_stockController.text),
-        'image': publicUrl,
-        'catégorie': _categorie,
-        'date': DateTime.now().toIso8601String(),
+        'image_url': publicUrl,
+        'image_originale_url': originalUrl,
+        'categorie': _categorie,
+        'date_ajout': DateTime.now().toIso8601String(),
       });
 
       if (!mounted) return;
@@ -157,6 +187,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 validator: (v) => v!.isEmpty ? 'Champ requis' : null,
               ),
               const SizedBox(height: 20),
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.auto_awesome, color: AppColor.primary),
+                title: Text('Photo catalogue professionnelle'),
+                subtitle: Text('Gemini crée une image catalogue carrée. L’original est conservé pour restauration. Une génération peut être facturée.'),
+              ),
               _imageFile == null
                   ? OutlinedButton.icon(
                       onPressed: _pickImage,

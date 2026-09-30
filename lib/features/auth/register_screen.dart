@@ -16,6 +16,8 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  static const bool _testMode = bool.fromEnvironment('APP_TEST_MODE', defaultValue: false);
+
   // Contrôleurs généraux
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -115,7 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     // Validation des fichiers selon le rôle
-    if (_selectedRole == 'Vendeur') {
+    if (!_testMode && _selectedRole == 'Vendeur') {
       if (_cniImage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Veuillez fournir la photo de votre CNI.')),
@@ -131,7 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
 
-    if (_selectedRole == 'Livreur') {
+    if (!_testMode && _selectedRole == 'Livreur') {
       if (_cniImage == null || _permisImage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Veuillez fournir votre CNI et votre permis de conduire.')),
@@ -190,6 +192,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       final user = response.user;
+
+      if (user != null && mounted && response.session == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Compte créé. Vérifiez votre email pour confirmer l’inscription avant de vous connecter.')),
+        );
+        return;
+      }
 
       if (user != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -287,268 +296,317 @@ class _RegisterScreenState extends State<RegisterScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColor.textPrimary, size: 18),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/login'); // Redirection de secours vers la connexion
+              context.go('/login');
             }
           },
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Créer un compte",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "Inscrivez-vous pour commencer sur A'samesse.",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-
-              // Sélecteur de Rôle
-              const Text(
-                "Je souhaite m'inscrire en tant que :",
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text("Acheteur")),
-                      selected: _selectedRole == 'Acheteur',
-                      selectedColor: AppColor.primary.withValues(alpha: 0.2),
-                      onSelected: (selected) {
-                        if (selected) setState(() => _selectedRole = 'Acheteur');
-                      },
+          padding: const EdgeInsets.fromLTRB(22.0, 0.0, 22.0, 30.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                if (_testMode) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3CD),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE0B84C)),
+                    ),
+                    child: const Text(
+                      'MODE TEST : les justificatifs vendeur/livreur sont ignorés. Ne publie pas cette version.',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF6B4E00)),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text("Vendeur")),
-                      selected: _selectedRole == 'Vendeur',
-                      selectedColor: AppColor.primary.withValues(alpha: 0.2),
-                      onSelected: (selected) {
-                        if (selected) setState(() => _selectedRole = 'Vendeur');
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text("Livreur")),
-                      selected: _selectedRole == 'Livreur',
-                      selectedColor: AppColor.primary.withValues(alpha: 0.2),
-                      onSelected: (selected) {
-                        if (selected) setState(() => _selectedRole = 'Livreur');
-                      },
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                 ],
-              ),
-              const SizedBox(height: 20),
-
-              // Champs Généraux
-              CustomTextField(
-                controller: _nameController,
-                hintText: "Nom complet",
-                prefixIcon: Icons.person_outline,
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _emailController,
-                hintText: "Adresse email",
-                prefixIcon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _phoneController,
-                hintText: "Numéro de téléphone",
-                prefixIcon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 16),
-
-              // --- ACHETEUR ---
-              if (_selectedRole == 'Acheteur') ...[
-                CustomTextField(
-                  controller: _addressController,
-                  hintText: "Adresse",
-                  prefixIcon: Icons.location_on_outlined,
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // --- VENDEUR ---
-              if (_selectedRole == 'Vendeur') ...[
-                CustomTextField(
-                  controller: _commerceController,
-                  hintText: "Nom du commerce",
-                  prefixIcon: Icons.storefront_outlined,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _typeVente,
-                  decoration: const InputDecoration(
-                    labelText: "Type de vente",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category_outlined),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'boutique', child: Text("Boutique constante")),
-                    DropdownMenuItem(value: 'occasionnel', child: Text("Occasionnel (Écoulement de stock)")),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setState(() => _typeVente = val);
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Documents Vendeur
                 const Text(
-                  "Pièces justificatives (Identification & Boutique)",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  "Créer un compte",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppColor.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Rejoignez A'samesse et commencez dès maintenant.",
+                  style: TextStyle(
+                    color: AppColor.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  "Je souhaite m'inscrire en tant que :",
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColor.textPrimary),
                 ),
                 const SizedBox(height: 10),
-                _buildImageTile(
-                  title: "Photo de la CNI *",
-                  imageFile: _cniImage,
-                  onTap: () => _pickImage((file) => _cniImage = file),
-                ),
-                _buildImageTile(
-                  title: _typeVente == 'boutique' ? "Photo de la boutique physique *" : "Photo du stock de produits *",
-                  imageFile: _proofImage,
-                  onTap: () => _pickImage((file) => _proofImage = file),
-                ),
-
-                if (_typeVente == 'boutique') ...[
-                  CustomTextField(
-                    controller: _contribuableNumController,
-                    hintText: "Numéro de contribuable (Optionnel)",
-                    prefixIcon: Icons.badge_outlined,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildImageTile(
-                    title: "Document / Attestation de contribuable (Optionnel)",
-                    imageFile: _contribuableImage,
-                    onTap: () => _pickImage((file) => _contribuableImage = file),
-                  ),
-                ],
-              ],
-
-              // --- LIVREUR ---
-              if (_selectedRole == 'Livreur') ...[
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedVehicule,
-                  decoration: const InputDecoration(
-                    labelText: "Type de véhicule",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.two_wheeler_outlined),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'Moto', child: Text("Moto")),
-                    DropdownMenuItem(value: 'Voiture', child: Text("Voiture")),
-                    DropdownMenuItem(value: 'Tricycle', child: Text("Tricycle / Cargo")),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedVehicule = val);
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                const Text(
-                  "Pièces justificatives (Identification & Conduite)",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 10),
-                _buildImageTile(
-                  title: "Photo de la CNI *",
-                  imageFile: _cniImage,
-                  onTap: () => _pickImage((file) => _cniImage = file),
-                ),
-                _buildImageTile(
-                  title: "Photo du Permis de conduire *",
-                  imageFile: _permisImage,
-                  onTap: () => _pickImage((file) => _permisImage = file),
-                ),
-              ],
-
-              // Mot de passe
-              CustomTextField(
-                controller: _passwordController,
-                hintText: "Mot de passe",
-                prefixIcon: Icons.lock_outline,
-                obscureText: true,
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _confirmPasswordController,
-                hintText: "Confirmer le mot de passe",
-                prefixIcon: Icons.lock_clock_outlined,
-                obscureText: true,
-              ),
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Checkbox(
-                    value: _acceptTerms,
-                    activeColor: AppColor.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (val) => setState(() => _acceptTerms = val ?? false),
-                  ),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(color: Colors.black87, fontSize: 12),
-                        children: [
-                          const TextSpan(text: "J'accepte les "),
-                          TextSpan(
-                            text: "conditions d'utilisation",
-                            style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold),
-                          ),
-                          const TextSpan(text: " et la politique de confidentialité."),
-                        ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text("Acheteur")),
+                        selected: _selectedRole == 'Acheteur',
+                        selectedColor: AppColor.primary.withValues(alpha: 0.12),
+                        backgroundColor: Colors.white,
+                        labelStyle: TextStyle(
+                          color: _selectedRole == 'Acheteur' ? AppColor.primary : AppColor.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) setState(() => _selectedRole = 'Acheteur');
+                        },
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text("Vendeur")),
+                        selected: _selectedRole == 'Vendeur',
+                        selectedColor: AppColor.primary.withValues(alpha: 0.12),
+                        backgroundColor: Colors.white,
+                        labelStyle: TextStyle(
+                          color: _selectedRole == 'Vendeur' ? AppColor.primary : AppColor.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) setState(() => _selectedRole = 'Vendeur');
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text("Livreur")),
+                        selected: _selectedRole == 'Livreur',
+                        selectedColor: AppColor.primary.withValues(alpha: 0.12),
+                        backgroundColor: Colors.white,
+                        labelStyle: TextStyle(
+                          color: _selectedRole == 'Livreur' ? AppColor.primary : AppColor.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) setState(() => _selectedRole = 'Livreur');
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                CustomTextField(
+                  controller: _nameController,
+                  hintText: "Nom complet",
+                  prefixIcon: Icons.person_outline,
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  controller: _emailController,
+                  hintText: "Adresse email",
+                  prefixIcon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  controller: _phoneController,
+                  hintText: "Numéro de téléphone",
+                  prefixIcon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+                if (_selectedRole == 'Acheteur') ...[
+                  CustomTextField(
+                    controller: _addressController,
+                    hintText: "Adresse",
+                    prefixIcon: Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (_selectedRole == 'Vendeur') ...[
+                  CustomTextField(
+                    controller: _commerceController,
+                    hintText: "Nom du commerce",
+                    prefixIcon: Icons.storefront_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _typeVente,
+                    decoration: InputDecoration(
+                      labelText: "Type de vente",
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: AppColor.primary.withValues(alpha: 0.5), width: 1.5),
+                      ),
+                      prefixIcon: const Icon(Icons.category_outlined, color: AppColor.textSecondary),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'boutique', child: Text("Boutique constante")),
+                      DropdownMenuItem(value: 'occasionnel', child: Text("Occasionnel")),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _typeVente = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Pièces justificatives",
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColor.textPrimary),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildImageTile(
+                    title: "Photo de la CNI *",
+                    imageFile: _cniImage,
+                    onTap: () => _pickImage((file) => _cniImage = file),
+                  ),
+                  _buildImageTile(
+                    title: _typeVente == 'boutique' ? "Photo de la boutique *" : "Photo du stock *",
+                    imageFile: _proofImage,
+                    onTap: () => _pickImage((file) => _proofImage = file),
+                  ),
+                  if (_typeVente == 'boutique') ...[
+                    CustomTextField(
+                      controller: _contribuableNumController,
+                      hintText: "Numéro de contribuable",
+                      prefixIcon: Icons.badge_outlined,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildImageTile(
+                      title: "Attestation contribuable (optionnel)",
+                      imageFile: _contribuableImage,
+                      onTap: () => _pickImage((file) => _contribuableImage = file),
+                    ),
+                  ],
+                ],
+                if (_selectedRole == 'Livreur') ...[
+                  DropdownButtonFormField<String>(
+                    value: _selectedVehicule,
+                    decoration: InputDecoration(
+                      labelText: "Type de véhicule",
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: AppColor.primary.withValues(alpha: 0.5), width: 1.5),
+                      ),
+                      prefixIcon: const Icon(Icons.two_wheeler_outlined, color: AppColor.textSecondary),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Moto', child: Text("Moto")),
+                      DropdownMenuItem(value: 'Voiture', child: Text("Voiture")),
+                      DropdownMenuItem(value: 'Tricycle', child: Text("Tricycle / Cargo")),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _selectedVehicule = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Pièces justificatives",
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColor.textPrimary),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildImageTile(
+                    title: "Photo de la CNI *",
+                    imageFile: _cniImage,
+                    onTap: () => _pickImage((file) => _cniImage = file),
+                  ),
+                  _buildImageTile(
+                    title: "Permis de conduire *",
+                    imageFile: _permisImage,
+                    onTap: () => _pickImage((file) => _permisImage = file),
                   ),
                 ],
-              ),
-              const SizedBox(height: 24),
-
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : AppleButton(
-                      text: "S'inscrire",
-                      onPressed: _signUp,
+                CustomTextField(
+                  controller: _passwordController,
+                  hintText: "Mot de passe",
+                  prefixIcon: Icons.lock_outline,
+                  obscureText: true,
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  controller: _confirmPasswordController,
+                  hintText: "Confirmer le mot de passe",
+                  prefixIcon: Icons.lock_clock_outlined,
+                  obscureText: true,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _acceptTerms,
+                      activeColor: AppColor.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      onChanged: (val) => setState(() => _acceptTerms = val ?? false),
                     ),
-              const SizedBox(height: 24),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Vous avez déjà un compte ? ", style: TextStyle(color: Colors.grey, fontSize: 14)),
-                  GestureDetector(
-                    onTap: () => context.go('/login'), // Remplacé par context.go pour cibler directement la page de connexion
-                    child: Text(
-                      "Se connecter",
-                      style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold, fontSize: 14),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: const TextStyle(color: AppColor.textSecondary, fontSize: 12),
+                          children: [
+                            const TextSpan(text: "J'accepte les "),
+                            TextSpan(
+                              text: "conditions d'utilisation",
+                              style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold),
+                            ),
+                            const TextSpan(text: " et la politique de confidentialité."),
+                          ],
+                        ),
+                      ),
                     ),
-                  )
-                ],
-              )
-            ],
+                  ],
+                ),
+                const SizedBox(height: 22),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppleButton(
+                        text: "S'inscrire",
+                        onPressed: _signUp,
+                      ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Déjà inscrit ? ", style: TextStyle(color: AppColor.textSecondary, fontSize: 14)),
+                    GestureDetector(
+                      onTap: () => context.go('/login'),
+                      child: const Text(
+                        "Se connecter",
+                        style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    )
+                  ],
+                )
+              ],
+            ),
           ),
         ),
       ),

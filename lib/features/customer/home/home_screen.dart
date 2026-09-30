@@ -82,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final response = await _supabase
             .from('utilisateurs')
             .select('nom')
-            .eq('id', user.id)
+            .eq('id_utilisateur', user.id)
             .maybeSingle()
             .timeout(const Duration(seconds: 3));
 
@@ -169,6 +169,99 @@ class _HomeScreenState extends State<HomeScreen> {
       return "${buffer.toString()} FCFA";
     }
     return "\$${val.toStringAsFixed(2)}";
+  }
+
+  Future<void> _addProductToCart(Map<String, dynamic> product, {int quantity = 1}) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Connectez-vous pour ajouter un article au panier.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColor.textPrimary,
+            action: SnackBarAction(
+              label: 'Connexion',
+              textColor: AppColor.primarySoft,
+              onPressed: () => context.go('/login'),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final productId = product['id_produit'];
+      if (productId == null) {
+        throw Exception('Identifiant du produit manquant.');
+      }
+
+      var panier = await supabase
+          .from('paniers')
+          .select('id_panier')
+          .eq('id_acheteur', user.id)
+          .maybeSingle();
+
+      dynamic idPanier;
+      if (panier == null) {
+        final inserted = await supabase
+            .from('paniers')
+            .insert({'id_acheteur': user.id, 'date_mise_a_jour': DateTime.now().toIso8601String()})
+            .select('id_panier')
+            .single();
+        idPanier = inserted['id_panier'];
+      } else {
+        idPanier = panier['id_panier'];
+      }
+
+      final existingLine = await supabase
+          .from('lignes_panier')
+          .select('id_ligne, quantite')
+          .eq('id_panier', idPanier)
+          .eq('id_produit', productId)
+          .maybeSingle();
+
+      if (existingLine != null) {
+        final currentQty = (existingLine['quantite'] ?? 0) as int;
+        await supabase
+            .from('lignes_panier')
+            .update({'quantite': currentQty + quantity})
+            .eq('id_ligne', existingLine['id_ligne']);
+      } else {
+        await supabase.from('lignes_panier').insert({
+          'id_panier': idPanier,
+          'id_produit': productId,
+          'quantite': quantity,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _cartItemCount += quantity;
+          _cartTotal += unitPrice * quantity;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product['nom_produit'] ?? 'Produit'} ajouté au panier'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColor.textPrimary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ajout au panier impossible : $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -563,15 +656,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildStandardCard(Map<String, dynamic> product) {
     final String nom = product['nom_produit'] ?? 'Product';
     final String prix = _formatPrice(product['prix']);
-    final String? imageUrl = product['images'] ?? product['image_url'];
+    final String? imageUrl = product['image_url'] ?? product['images'];
 
     return GestureDetector(
       onTap: () {
         context.go('/home/product-detail', extra: product);
       },
       child: Container(
-        height: 195,
-        padding: const EdgeInsets.all(16),
+        height: 220,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(26),
@@ -584,14 +677,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
                 child: _buildProductPhoto(nom, imageUrl),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               nom,
               textAlign: TextAlign.center,
@@ -603,15 +696,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: AppColor.textPrimary,
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              prix,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF757575),
-              ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  prix,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColor.primary,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _addProductToCart(product),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColor.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Ajouter',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -622,15 +737,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFeaturedWideCard(Map<String, dynamic> product) {
     final String nom = product['nom_produit'] ?? 'Beats Solo';
     final String prix = _formatPrice(product['prix'] ?? 650);
-    final String? imageUrl = product['images'] ?? product['image_url'];
+    final String? imageUrl = product['image_url'] ?? product['images'];
 
     return GestureDetector(
       onTap: () {
         context.go('/home/product-detail', extra: product);
       },
       child: Container(
-        height: 155,
-        padding: const EdgeInsets.all(20),
+        height: 170,
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(28),
@@ -678,13 +793,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColor.primary,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        "\$820.00",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade400,
-                          decoration: TextDecoration.lineThrough,
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => _addProductToCart(product),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColor.primary,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Text(
+                            'Ajouter',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       ),
                     ],
