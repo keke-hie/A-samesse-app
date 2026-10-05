@@ -12,28 +12,31 @@ import '../../features/customer/cart/cart_screen.dart';
 import '../../features/customer/orders/order_tracking_screen.dart';
 import '../../features/customer/profile/profile_screen.dart';
 import 'package:asamesse_app/features/vendor/marketing_ia_screen.dart';
-import '../../features/vendor/campaign_refine_screen.dart';
+import '../../features/vendor/campaign_editor_screen.dart';
+import '../../features/vendor/shop_management_screen.dart';
+import '../../features/vendor/vendor_storefront_screen.dart';
+import '../../features/vendor/vendor_orders_screen.dart';
+import '../../features/vendor/vendor_dashboard_screen.dart';
 import '../../features/delivery/delivery_map_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
+import '../../features/admin/admin_management_screen.dart';
 import '../../features/admin/analytics_screen.dart';
 import '../../navigation/main_wrapper.dart';
+import '../../navigation/vendor_wrapper.dart';
+import '../../navigation/delivery_wrapper.dart';
+import '../../navigation/admin_wrapper.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
   routes: [
     // --- AUTHENTIFICATION ---
-    GoRoute(
-      path: '/splash',
-      builder: (context, state) => const SplashScreen(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginScreen(),
-    ),
+    GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
@@ -64,9 +67,8 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/cart',
-          builder: (context, state) => CartScreen(
-            extraData: state.extra as Map<String, dynamic>?,
-          ),
+          builder: (context, state) =>
+              CartScreen(extraData: state.extra as Map<String, dynamic>?),
         ),
         GoRoute(
           path: '/orders',
@@ -82,35 +84,112 @@ final GoRouter appRouter = GoRouter(
     ),
 
     // --- ESPACE VENDEUR ---
-    GoRoute(
-      path: '/vendor/marketing-ia',
-      builder: (context, state) => const MarketingiaScreen(),
+    ShellRoute(
+      builder: (context, state, child) => VendorWrapper(child: child),
+      routes: [
+        GoRoute(
+          path: '/vendor/dashboard',
+          builder: (context, state) => const VendorDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/vendor/shop-management',
+          builder: (context, state) => const ShopManagementScreen(),
+        ),
+        GoRoute(
+          path: '/vendor/products',
+          builder: (context, state) =>
+              const ShopManagementScreen(productsOnly: true),
+        ),
+        GoRoute(
+          path: '/vendor/orders',
+          builder: (context, state) => const VendorOrdersScreen(),
+        ),
+        GoRoute(
+          path: '/vendor/sales',
+          builder: (context, state) => const VendorOrdersScreen(),
+        ),
+        GoRoute(
+          path: '/vendor/deals',
+          builder: (context, state) => const DealsScreen(),
+        ),
+        GoRoute(
+          path: '/vendor/marketing-ia',
+          builder: (context, state) => MarketingiaScreen(
+            initialPlatform: state.uri.queryParameters['platform'],
+          ),
+        ),
+        GoRoute(
+          path: '/vendor/campaign-refine',
+          builder: (context, state) {
+            final content = state.extra as Map<String, dynamic>?;
+            return content == null
+                ? MarketingiaScreen()
+                : CampaignEditorScreen(initialContent: content);
+          },
+        ),
+        GoRoute(
+          path: '/vendor/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
+      ],
     ),
     GoRoute(
-      path: '/vendor/campaign-refine',
-      builder: (context, state) => const CampaignRefineScreen(),
+      path: '/shops/:shopId',
+      builder: (context, state) =>
+          VendorStorefrontScreen(shopId: state.pathParameters['shopId']!),
     ),
 
     // --- ESPACE LIVREUR ---
-    GoRoute(
-      path: '/delivery/map',
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        return DeliveryMapScreen(
-          idCommande: extra?['id_commande']?.toString() ?? extra?['id']?.toString(),
-          extraData: extra,
-        );
-      },
+    ShellRoute(
+      builder: (context, state, child) => DeliveryWrapper(child: child),
+      routes: [
+        GoRoute(
+          path: '/delivery/missions',
+          builder: (context, state) =>
+              const DeliveryMapScreen(missionsOnly: true),
+        ),
+        GoRoute(
+          path: '/delivery/map',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return DeliveryMapScreen(
+              idCommande:
+                  extra?['id_commande']?.toString() ?? extra?['id']?.toString(),
+              extraData: extra,
+              mapOnly: true,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/delivery/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
+      ],
     ),
 
     // --- ESPACE ADMINISTRATEUR ---
-    GoRoute(
-      path: '/admin/dashboard',
-      builder: (context, state) => const AdminDashboardScreen(),
-    ),
-    GoRoute(
-      path: '/admin/analytics',
-      builder: (context, state) => const AnalyticsScreen(),
+    ShellRoute(
+      builder: (context, state, child) => AdminWrapper(child: child),
+      routes: [
+        GoRoute(
+          path: '/admin/dashboard',
+          builder: (context, state) => const AdminDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/admin/analytics',
+          builder: (context, state) => const AnalyticsScreen(),
+        ),
+        GoRoute(
+          path: '/admin/management',
+          builder: (context, state) => AdminManagementScreen(
+            initialTab: state.uri.queryParameters['tab'] == 'disputes' ? 1 : 0,
+          ),
+        ),
+        GoRoute(
+          path: '/admin/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
+      ],
     ),
   ],
 );

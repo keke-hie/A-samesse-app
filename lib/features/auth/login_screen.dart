@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/constants/app_color.dart';
 import '../../core/widgets/apple_button.dart';
-import '../../core/widgets/custom_text_field.dart';
+import 'auth_screen_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,7 +14,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
   bool _isLoading = false;
 
   @override
@@ -58,6 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } catch (_) {
           role = null;
         }
+        if (!mounted) return;
         role ??= user.userMetadata?['role']?.toString();
 
         switch (role?.toLowerCase()) {
@@ -66,10 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
             context.go('/admin/dashboard');
             break;
           case 'vendeur':
-            context.go('/vendor/marketing-ia');
+            context.go('/vendor/shop-management');
             break;
           case 'livreur':
-            context.go('/delivery/map');
+            context.go('/delivery/missions');
             break;
           case 'acheteur':
           default:
@@ -104,144 +103,76 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColor.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 24.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Container(
-                padding: const EdgeInsets.all(24.0),
-                decoration: BoxDecoration(
-                  color: AppColor.cardBackground,
-                  borderRadius: BorderRadius.circular(30.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 16,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: const BoxDecoration(
-                        color: AppColor.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Center(
-                        child: Text(
-                          "A'",
-                          style: TextStyle(
-                            fontFamily: 'serif',
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      "A'samesse",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: AppColor.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Bon retour parmi nous",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColor.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    CustomTextField(
-                      controller: _emailController,
-                      hintText: "Adresse email",
-                      prefixIcon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: _passwordController,
-                      hintText: "Mot de passe",
-                      prefixIcon: Icons.lock_outline,
-                      obscureText: _obscurePassword,
-                    ),
-                    const SizedBox(height: 20),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                        ),
-                        child: const Text(
-                          "Mot de passe oublié ?",
-                          style: TextStyle(
-                            color: AppColor.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _isLoading
-                        ? const Center(
-                            child: SizedBox(
-                              height: 54,
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        : AppleButton(
-                            text: "Se connecter",
-                            onPressed: _login,
-                          ),
-                    const SizedBox(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          "Nouveau ?",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColor.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () => context.go('/register'),
-                          child: const Text(
-                            "Créer un compte",
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColor.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return AuthScreenShell(
+      title: 'Bon retour !',
+      subtitle: 'Connectez-vous pour retrouver votre espace.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AuthTextField(
+            controller: _emailController,
+            hintText: "Adresse email",
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+          ),
+          const SizedBox(height: 13),
+          AuthTextField(
+            controller: _passwordController,
+            hintText: "Mot de passe",
+            obscureText: true,
+            autofillHints: const [AutofillHints.password],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {},
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                minimumSize: const Size(0, 30),
+                foregroundColor: AuthScreenShell.headingColor,
+              ),
+              child: const Text(
+                'Mot de passe oublié ?',
+                style: TextStyle(fontSize: 11),
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 7),
+          _isLoading
+              ? const SizedBox(
+                  height: 48,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : AppleButton(
+                  text: 'Se connecter',
+                  backgroundColor: AuthScreenShell.actionColor,
+                  onPressed: _login,
+                  height: 48,
+                ),
+          const SizedBox(height: 19),
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Pas encore de compte ?',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9B7779)),
+              ),
+              TextButton(
+                onPressed: () => context.go('/register'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  minimumSize: const Size(0, 32),
+                  foregroundColor: AuthScreenShell.headingColor,
+                ),
+                child: const Text(
+                  'Inscrivez-vous',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

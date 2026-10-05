@@ -22,6 +22,14 @@ class _CartScreenState extends State<CartScreen> {
   final Set<String> _selectedLineIds = {};
   final TextEditingController _deliveryAddressController = TextEditingController();
   LatLng? _deliveryLocation;
+  late Future<List<Map<String, dynamic>>> _cartItemsFuture;
+  bool _selectionInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartItemsFuture = _fetchCartItems();
+  }
 
   @override
   void dispose() {
@@ -76,7 +84,7 @@ class _CartScreenState extends State<CartScreen> {
                         children: [
                           TileLayer(
                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.asamesse_app',
+                            userAgentPackageName: 'com.asamesse.app',
                           ),
                           MarkerLayer(
                             markers: [
@@ -132,7 +140,10 @@ class _CartScreenState extends State<CartScreen> {
           .eq('id_acheteur', userId)
           .maybeSingle();
 
-      if (panier == null) return [];
+      if (panier == null) {
+        _selectionInitialized = true;
+        return [];
+      }
 
       final response = await _supabase
           .from('lignes_panier')
@@ -140,18 +151,18 @@ class _CartScreenState extends State<CartScreen> {
           .eq('id_panier', panier['id_panier']);
 
       final items = List<Map<String, dynamic>>.from(response);
-      if (_selectedLineIds.isEmpty && items.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() {
-            _selectedLineIds.addAll(items.map((e) => e['id_ligne'].toString()).toSet());
-          });
-        });
+      if (!_selectionInitialized) {
+        _selectedLineIds.addAll(items.map((item) => item['id_ligne'].toString()));
+        _selectionInitialized = true;
       }
       return items;
     } catch (_) {
       return [];
     }
+  }
+
+  void _refreshCartItems() {
+    setState(() => _cartItemsFuture = _fetchCartItems());
   }
 
   void _toggleLineSelection(dynamic lineId) {
@@ -181,10 +192,11 @@ class _CartScreenState extends State<CartScreen> {
     final newQty = currentQty + delta;
     if (newQty <= 0) {
       await _supabase.from('lignes_panier').delete().eq('id_ligne', lineId);
+      _selectedLineIds.remove(lineId.toString());
     } else {
       await _supabase.from('lignes_panier').update({'quantite': newQty}).eq('id_ligne', lineId);
     }
-    if (mounted) setState(() {});
+    if (mounted) _refreshCartItems();
   }
 
   Future<void> _removeSelected() async {
@@ -197,6 +209,7 @@ class _CartScreenState extends State<CartScreen> {
     if (mounted) {
       setState(() {
         _selectedLineIds.clear();
+        _cartItemsFuture = _fetchCartItems();
       });
     }
   }
@@ -339,7 +352,7 @@ class _CartScreenState extends State<CartScreen> {
       body: userId == null
           ? _buildGuestState()
           : FutureBuilder<List<Map<String, dynamic>>>(
-              future: _fetchCartItems(),
+              future: _cartItemsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: AppColor.primary));
@@ -407,7 +420,7 @@ class _CartScreenState extends State<CartScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: cartItems.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           return _buildCartItem(cartItems[index]);
                         },
@@ -683,6 +696,10 @@ class _CartScreenState extends State<CartScreen> {
     final String? imageUrl = produit['image_url'] ?? produit['images'];
     final rawStock = produit['stock'];
     final bool inStock = rawStock is num ? rawStock.toInt() > 0 : true;
+    final variants = [
+      if ((item['couleur'] as String?)?.trim().isNotEmpty ?? false) 'Couleur : ${item['couleur']}',
+      if ((item['taille'] as String?)?.trim().isNotEmpty ?? false) 'Taille : ${item['taille']}',
+    ];
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -704,21 +721,17 @@ class _CartScreenState extends State<CartScreen> {
             activeColor: AppColor.primary,
             onChanged: (_) => _toggleLineSelection(lineId),
           ),
-          Container(
-            width: 65,
-            height: 65,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9F7F5),
-              borderRadius: BorderRadius.circular(16),
+          SizedBox(
+            width: 78,
+            height: 78,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => _cartImagePlaceholder())
+                  : _cartImagePlaceholder(),
             ),
-            child: (imageUrl != null && imageUrl.isNotEmpty)
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(imageUrl, fit: BoxFit.contain),
-                  )
-                : const Icon(Icons.headphones_rounded, size: 32, color: Color(0xFFD67373)),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -734,7 +747,16 @@ class _CartScreenState extends State<CartScreen> {
                   '${price.toStringAsFixed(0)} FCFA',
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppColor.primary, fontSize: 13),
                 ),
-                const SizedBox(height: 6),
+                if (variants.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    variants.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10, color: AppColor.textSecondary),
+                  ),
+                ],
+                const SizedBox(height: 4),
                 Text(
                   inStock ? 'En stock' : 'Rupture de stock',
                   style: TextStyle(
@@ -743,24 +765,38 @@ class _CartScreenState extends State<CartScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _updateQuantity(lineId, qty, -1),
+                      icon: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: AppColor.primary),
+                    ),
+                    Text('$qty', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                      padding: EdgeInsets.zero,
+                      onPressed: rawStock is num && qty >= rawStock.toInt() ? null : () => _updateQuantity(lineId, qty, 1),
+                      icon: const Icon(Icons.add_circle_outline_rounded, size: 18, color: AppColor.primary),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _updateQuantity(lineId, qty, -1),
-                icon: const Icon(Icons.remove_circle_outline_rounded, size: 20, color: Colors.grey),
-              ),
-              Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              IconButton(
-                onPressed: () => _updateQuantity(lineId, qty, 1),
-                icon: const Icon(Icons.add_circle_rounded, size: 20, color: AppColor.primary),
-              ),
-            ],
-          )
         ],
       ),
+    );
+  }
+
+  Widget _cartImagePlaceholder() {
+    return const ColoredBox(
+      color: AppColor.primarySoft,
+      child: Center(child: Icon(Icons.image_not_supported_outlined, color: AppColor.primary)),
     );
   }
 

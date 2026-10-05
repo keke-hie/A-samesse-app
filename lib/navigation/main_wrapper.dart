@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../core/localization/app_locale.dart';
 
 class MainWrapper extends StatefulWidget {
   final Widget child;
@@ -24,19 +25,21 @@ class _MainWrapperState extends State<MainWrapper> {
     switch (index) {
       case 0:
         context.go('/home');
-        break;
+        return;
       case 1:
         context.go('/deals');
-        break;
+        return;
       case 2:
         context.go('/cart');
-        break;
+        return;
       case 3:
         context.go('/orders');
-        break;
+        return;
       case 4:
         context.go('/profile');
-        break;
+        return;
+      default:
+        return;
     }
   }
 
@@ -44,17 +47,41 @@ class _MainWrapperState extends State<MainWrapper> {
   Widget build(BuildContext context) {
     final selectedIndex = _calculateSelectedIndex(context);
 
+    final items = [
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.home_outlined),
+        activeIcon: const Icon(Icons.home_rounded),
+        label: AppLocale.text(context, 'Accueil', 'Home'),
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.local_offer_outlined),
+        activeIcon: const Icon(Icons.local_offer_rounded),
+        label: AppLocale.text(context, 'Offres', 'Deals'),
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.shopping_cart_outlined),
+        activeIcon: const Icon(Icons.shopping_cart_rounded),
+        label: AppLocale.text(context, 'Panier', 'Cart'),
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.inventory_2_outlined),
+        activeIcon: const Icon(Icons.inventory_2_rounded),
+        label: AppLocale.text(context, 'Commandes', 'Orders'),
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.person_outline_rounded),
+        activeIcon: const Icon(Icons.person_rounded),
+        label: AppLocale.text(context, 'Profil', 'Profile'),
+      ),
+    ];
+
     return Scaffold(
       body: widget.child,
-      // ---> REMPLACEZ LA BARRE DE NAVIGATION ICI <---
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border(
-            top: BorderSide(
-              color: const Color(0xFFF0DDD7),
-              width: 1,
-            ),
+            top: BorderSide(color: const Color(0xFFF0DDD7), width: 1),
           ),
         ),
         child: BottomNavigationBar(
@@ -69,33 +96,7 @@ class _MainWrapperState extends State<MainWrapper> {
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
           elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home_rounded),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.local_offer_outlined),
-              activeIcon: Icon(Icons.local_offer_rounded),
-              label: 'Deals',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart_outlined),
-              activeIcon: Icon(Icons.shopping_cart_rounded),
-              label: 'Cart',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.inventory_2_outlined),
-              activeIcon: Icon(Icons.inventory_2_rounded),
-              label: 'Orders',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              activeIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
-            ),
-          ],
+          items: items,
         ),
       ),
     );

@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REMPLACER_PAR_TEAM_ID.com.asamesse.app"],
+        "components": [
+          { "/": "/shops/*", "comment": "Fiche boutique" },
+          { "/": "/boutique/*", "comment": "Fiche boutique (alias)" },
+          { "/": "/product/*", "comment": "Fiche produit" },
+          { "/": "/produit/*", "comment": "Fiche produit (alias)" },
+          { "/": "/deals", "comment": "Promotions" },
+          { "/": "/cart", "comment": "Panier" },
+          { "/": "/orders", "comment": "Commandes" },
+          { "/": "/profile", "comment": "Profil" },
+          { "/": "/vendor/*", "comment": "Espace vendeur" },
+          { "/": "/delivery/*", "comment": "Espace livreur" },
+          { "/": "/admin/*", "comment": "Espace administrateur" },
+          { "/": "/*", "comment": "Toute autre URL asamesse.app" }
+        ]
+      }
+    ]
+  }
+}

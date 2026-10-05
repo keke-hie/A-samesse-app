@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_color.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -55,7 +56,7 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Grille de raccourcis
+            // Role-specific management shortcuts
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -64,41 +65,11 @@ class AdminDashboardScreen extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 1.3,
               children: [
-                _buildActionCard(context, "Inventaire", Icons.store_outlined, () {}),
-                _buildActionCard(context, "Commandes", Icons.local_shipping_outlined, () {}),
-                _buildActionCard(context, "Clients", Icons.people_outline, () {}),
-                _buildActionCard(context, "Analyses", Icons.show_chart_outlined, () {
-                  Navigator.pushNamed(context, '/analytics');
-                }),
+                _buildActionCard(context, 'Utilisateurs', Icons.people_outline, () => context.go('/admin/management')),
+                _buildActionCard(context, 'Litiges', Icons.report_problem_outlined, () => context.go('/admin/management?tab=disputes')),
+                _buildActionCard(context, 'Analyses', Icons.show_chart_outlined, () => context.go('/admin/analytics')),
+                _buildActionCard(context, 'Gestion', Icons.admin_panel_settings_outlined, () => context.go('/admin/management')),
               ],
-            ),
-            const SizedBox(height: 12),
-
-            // Carte Bouton IA Contenu
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColor.primary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
-                  const SizedBox(width: 12),
-                  const Text("IA Contenu", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-            const Text("Produits Phares", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-
-            // Liste Produits Phares
-            const Text(
-              'Les produits de la boutique apparaîtront ici lorsque les données seront connectées.',
-              style: TextStyle(color: AppColor.textSecondary),
             ),
           ],
         ),
@@ -136,13 +107,20 @@ class AdminDashboardScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.black54, size: 28),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: AppColor.primary, size: 21),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+            const Icon(Icons.chevron_right, size: 18, color: AppColor.textMuted),
           ],
         ),
       ),

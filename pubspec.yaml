@@ -30,8 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
     
   go_router: ^18.0.1  
+  app_links: ^7.2.1         # App Links Android / Universal Links iOS
   supabase_flutter: ^2.17.2
   image_picker: ^1.1.2     #
   share_plus: ^10.0.0       #
@@ -95,5 +98,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-dependency_overrides:
-  material_ui: ^0.0.1

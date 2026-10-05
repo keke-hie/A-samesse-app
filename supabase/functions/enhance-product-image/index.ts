@@ -1,3 +1,5 @@
+export {};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -25,6 +27,28 @@ function encodeBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
   }
   return btoa(binary);
+}
+
+type StudioScene = "neutre" | "studio" | "dressing" | "mannequin";
+
+const SCENES: Record<StudioScene, string> = {
+  neutre: "un fond neutre et uni, très clair, sans texture, pour un rendu e-commerce épuré",
+  studio:
+    "un décor de studio professionnel clair et élégant, avec une lumière douce et un léger dégradé de fond",
+  dressing:
+    "un décor de dressing moderne et lumineux, aux teintes chaudes, avec un cadrage soigné",
+  mannequin:
+    "un mannequin virtuel invisible (effet buste), sans visage, sans ajouter d'accessoire absent de la photo",
+};
+
+function normalizeScene(value: unknown): StudioScene {
+  const key = typeof value === "string" ? value.toLowerCase() : "";
+  return (Object.prototype.hasOwnProperty.call(SCENES, key) ? key : "studio") as StudioScene;
+}
+
+function buildStudioPrompt(scene: StudioScene, productName: string, description: string): string {
+  const decor = SCENES[scene];
+  return `Retouche la photo produit fournie pour en faire une photographie e-commerce professionnelle. Supprime l'arrière-plan d'origine (détourage automatique). Garde exactement le même produit, sa forme, ses couleurs, ses matières, ses accessoires et ses détails reconnaissables. Place-le sur ${decor}. Améliore l'éclairage, la luminosité, les contrastes et la netteté pour un rendu photoréaliste. Produit : ${productName}. Description fiable fournie par le vendeur : ${description || "aucune"}. N'ajoute ni texte, ni logo, ni accessoire absent de la photo.`;
 }
 
 denoRuntime.serve(async (request: Request) => {
@@ -64,6 +88,8 @@ denoRuntime.serve(async (request: Request) => {
     let mimeType = body.mimeType === "image/png" ? "image/png" : "image/jpeg";
     const productId = typeof body.productId === "string" ? body.productId : null;
     const restoreOriginal = body.restoreOriginal === true;
+    const scene = normalizeScene(body.scene);
+
     let existingProduct: Record<string, unknown> | null = null;
 
     if (productId != null) {
@@ -78,6 +104,10 @@ denoRuntime.serve(async (request: Request) => {
       }
 
       existingProduct = products[0];
+
+      if (existingProduct == null) {
+        return jsonResponse({ error: "Produit introuvable dans ta boutique." }, 404);
+      }
 
       if (restoreOriginal) {
         const originalUrl = existingProduct.image_originale_url;
@@ -103,7 +133,13 @@ denoRuntime.serve(async (request: Request) => {
 
       productName ||= String(existingProduct.nom_produit ?? "");
       description ||= String(existingProduct.description ?? "");
-      const sourceUrl = new URL(String(existingProduct.image_originale_url ?? existingProduct.image_url ?? ""));
+
+      const rawSourceUrl = String(existingProduct.image_originale_url ?? existingProduct.image_url ?? "");
+      if (!rawSourceUrl) {
+        return jsonResponse({ error: "Aucune photo du produit n'est disponible pour la retouche." }, 400);
+      }
+
+      const sourceUrl = new URL(rawSourceUrl);
       const projectHost = new URL(supabaseUrl).hostname;
       if (sourceUrl.hostname !== projectHost || !sourceUrl.pathname.startsWith("/storage/v1/object/public/images/")) {
         return jsonResponse({ error: "Cette photo ne vient pas du stockage produit A'samesse. Réimporte-la pour la retoucher." }, 400);
@@ -128,46 +164,51 @@ denoRuntime.serve(async (request: Request) => {
       return jsonResponse({ error: "La photo est trop volumineuse. Choisis une image plus légère." }, 413);
     }
 
-    const prompt = `Retouche la photo produit fournie pour en faire une photographie de catalogue e-commerce professionnelle. Garde le même produit, sa forme, ses couleurs, ses accessoires et ses détails reconnaissables. Remplace seulement l'arrière-plan et améliore l'éclairage, la netteté et la composition. Produit : ${productName}. Description fiable fournie par le vendeur : ${description || "aucune"}. Fond studio clair, élégant et discret, lumière douce, cadrage centré, rendu photoréaliste. N'ajoute ni texte, ni logo, ni accessoire absent de la photo.`;
+    const prompt = buildStudioPrompt(scene, productName, description);
 
-    const imageResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
-      body: JSON.stringify({
-        model: "gemini-3.1-flash-image",
-        input: [
-          { type: "text", text: prompt },
-          { type: "image", data: imageBase64, mime_type: mimeType },
-        ],
-        response_format: {
-          type: "image",
-          mime_type: "image/jpeg",
-          aspect_ratio: "1:1",
-          image_size: "1K",
-        },
-        store: false,
-      }),
-    });
+    const generateImage = async (aspectRatio: string): Promise<string | null> => {
+      const imageResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
+        body: JSON.stringify({
+          model: "gemini-3.1-flash-image",
+          input: [
+            { type: "text", text: prompt },
+            { type: "image", data: imageBase64, mime_type: mimeType },
+          ],
+          response_format: {
+            type: "image",
+            mime_type: "image/jpeg",
+            aspect_ratio: aspectRatio,
+            image_size: "1K",
+          },
+          store: false,
+        }),
+      });
 
-    if (!imageResponse.ok) {
-      console.error("Gemini product image request failed:", imageResponse.status);
+      if (!imageResponse.ok) {
+        console.error(`Gemini product image request failed (${aspectRatio}):`, imageResponse.status);
+        return null;
+      }
+
+      const result = await imageResponse.json();
+      const imageBlock = result.steps
+        ?.filter((step: { type?: string }) => step.type === "model_output")
+        .flatMap((step: { content?: Array<Record<string, unknown>> }) => step.content ?? [])
+        .find((block: Record<string, unknown>) => block.type === "image");
+
+      return typeof imageBlock?.data === "string" ? imageBlock.data : null;
+    };
+
+    const squareBase64 = await generateImage("1:1");
+    if (squareBase64 == null) {
       return jsonResponse({ error: "Gemini n'a pas pu retoucher cette photo. Réessaie avec une image nette du produit." }, 502);
     }
+    const verticalBase64 = await generateImage("9:16");
 
-    const result = await imageResponse.json();
-    const imageBlock = result.steps
-      ?.filter((step: { type?: string }) => step.type === "model_output")
-      .flatMap((step: { content?: Array<Record<string, unknown>> }) => step.content ?? [])
-      .find((block: Record<string, unknown>) => block.type === "image");
-
-    if (typeof imageBlock?.data !== "string") {
-      return jsonResponse({ error: "Gemini n'a pas renvoyé de photo retouchée." }, 502);
-    }
-
-    if (productId != null && existingProduct != null) {
-      const imagePath = `products/${user.id}/${productId}_studio_${Date.now()}.jpg`;
-      const encodedPath = imagePath.split("/").map(encodeURIComponent).join("/");
-      const imageBytes = Uint8Array.from(atob(imageBlock.data), (character) => character.charCodeAt(0));
+    const uploadImage = async (path: string, base64: string): Promise<string | null> => {
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+      const imageBytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
       const uploadResponse = await fetch(`${supabaseUrl}/storage/v1/object/images/${encodedPath}`, {
         method: "POST",
         headers: {
@@ -178,9 +219,19 @@ denoRuntime.serve(async (request: Request) => {
         },
         body: imageBytes,
       });
-      if (!uploadResponse.ok) return jsonResponse({ error: "Enregistrement de la photo retouchée impossible." }, 502);
+      if (!uploadResponse.ok) return null;
+      return `${supabaseUrl}/storage/v1/object/public/images/${encodedPath}`;
+    };
 
-      const imageUrl = `${supabaseUrl}/storage/v1/object/public/images/${encodedPath}`;
+    if (productId != null && existingProduct != null) {
+      const timestamp = Date.now();
+      const imageUrl = await uploadImage(`products/${user.id}/${productId}_studio_${timestamp}.jpg`, squareBase64);
+      if (imageUrl == null) return jsonResponse({ error: "Enregistrement de la photo retouchée impossible." }, 502);
+
+      const verticalUrl = verticalBase64 == null
+        ? null
+        : await uploadImage(`products/${user.id}/${productId}_story_${timestamp}.jpg`, verticalBase64);
+
       const updateResponse = await fetch(
         `${supabaseUrl}/rest/v1/produits?id_produit=eq.${encodeURIComponent(productId)}&id_vendeur=eq.${encodeURIComponent(user.id)}`,
         {
@@ -193,15 +244,21 @@ denoRuntime.serve(async (request: Request) => {
           },
           body: JSON.stringify({
             image_url: imageUrl,
+            image_verticale_url: verticalUrl,
             image_originale_url: existingProduct.image_originale_url ?? existingProduct.image_url,
           }),
         },
       );
       if (!updateResponse.ok) return jsonResponse({ error: "La photo a été générée mais le produit n'a pas pu être mis à jour." }, 502);
-      return jsonResponse({ image_url: imageUrl });
+      return jsonResponse({ image_url: imageUrl, image_verticale_url: verticalUrl, scene });
     }
 
-    return jsonResponse({ imageBase64: imageBlock.data, mimeType: "image/jpeg" });
+    return jsonResponse({
+      imageBase64: squareBase64,
+      imageVerticalBase64: verticalBase64,
+      mimeType: "image/jpeg",
+      scene,
+    });
   } catch (error) {
     console.error("Product image enhancement failed:", error);
     return jsonResponse({ error: "Erreur pendant la retouche de la photo." }, 500);

@@ -3,7 +3,7 @@ import '../constants/app_color.dart';
 
 class AppleButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final IconData? icon;
   final Color? backgroundColor;
   final Color? textColor;

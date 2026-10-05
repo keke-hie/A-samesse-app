@@ -70,6 +70,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<String?> _fetchDeliveryOtp(dynamic orderId) async {
+    final response = await _supabase
+        .from('delivery_otps')
+        .select('code_otp')
+        .eq('id_commande', orderId)
+        .maybeSingle();
+    return response?['code_otp']?.toString();
+  }
+
   int _statusStep(String status) {
     final normalized = status.toLowerCase();
     if (normalized.contains('paiement')) return -2;
@@ -83,6 +92,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   void _showOrderDetails(Map<String, dynamic> order) {
     final orderId = order['id_commande'] ?? order['id'];
     final status = (order['statut'] ?? 'en_attente').toString();
+    final normalizedStatus = status.toLowerCase().trim();
+    final isDelivered = normalizedStatus == 'livre' ||
+        normalizedStatus == 'livré' ||
+        normalizedStatus == 'livree' ||
+        normalizedStatus == 'livrée' ||
+        normalizedStatus == 'terminee' ||
+        normalizedStatus == 'terminée';
 
     showModalBottomSheet<void>(
       context: context,
@@ -118,6 +134,53 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               Text(_formatStatusLabel(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.w700)),
               const SizedBox(height: 22),
               _buildStatusProgress(status),
+              if (!isDelivered) ...[
+                const SizedBox(height: 16),
+                FutureBuilder<String?>(
+                  future: _fetchDeliveryOtp(orderId),
+                  builder: (context, snapshot) {
+                    final code = snapshot.data;
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColor.primarySoft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline, color: AppColor.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Code de remise', style: TextStyle(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  code == null ? 'Disponible après attribution du livreur' : 'À communiquer au livreur',
+                                  style: const TextStyle(fontSize: 11, color: AppColor.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (code != null)
+                            Text(
+                              code,
+                              style: const TextStyle(
+                                color: AppColor.primary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 2,
+                              ),
+                            )
+                          else if (snapshot.connectionState == ConnectionState.waiting)
+                            const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 24),
               const Text('Articles commandés', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColor.textPrimary)),
               const SizedBox(height: 10),

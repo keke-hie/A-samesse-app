@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
-import '../../../core/widgets/apple_button.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -18,17 +17,40 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _descriptionController = TextEditingController();
   final _prixController = TextEditingController();
   final _stockController = TextEditingController();
+  final _couleursController = TextEditingController();
+  final _taillesController = TextEditingController();
+  final _caracteristiquesController = TextEditingController();
   final String _categorie = 'friandises';
   
   XFile? _imageFile;
   bool _isLoading = false;
   String? _idBoutique;
+  String _scene = 'studio';
 
   @override
   void initState() {
     super.initState();
     _recupererIdBoutique();
   }
+
+  @override
+  void dispose() {
+    _nomController.dispose();
+    _descriptionController.dispose();
+    _prixController.dispose();
+    _stockController.dispose();
+    _couleursController.dispose();
+    _taillesController.dispose();
+    _caracteristiquesController.dispose();
+    super.dispose();
+  }
+
+  List<String> _parseEntries(String value) => value
+      .split(RegExp(r'[,;\n]'))
+      .map((entry) => entry.trim())
+      .where((entry) => entry.isNotEmpty)
+      .toSet()
+      .toList();
 
   Future<void> _recupererIdBoutique() async {
     try {
@@ -47,7 +69,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         });
       }
     } catch (e) {
-      print('Erreur récupération boutique : $e');
+      debugPrint('Erreur récupération boutique : $e');
     }
   }
 
@@ -92,6 +114,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           'description': _descriptionController.text.trim(),
           'imageBase64': base64Encode(originalBytes),
           'mimeType': mimeType,
+          'scene': _scene,
         },
       );
 
@@ -105,7 +128,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         throw Exception('Gemini n’a pas renvoyé de photo retouchée.');
       }
       final enhancedBytes = base64Decode(enhancedBase64);
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.name.split('.').first}.jpg';
+      final fileStem =
+          '${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.name.split('.').first}';
+      final fileName = '$fileStem.jpg';
       final originalPath = 'originals/$fileName';
       final enhancedPath = 'products/$fileName';
 
@@ -123,6 +148,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final originalUrl = supabase.storage.from(storageBucket).getPublicUrl(originalPath);
       final publicUrl = supabase.storage.from(storageBucket).getPublicUrl(enhancedPath);
 
+      // 2bis. Image verticale (format Story 9:16) générée par le Studio IA.
+      String? verticalUrl;
+      final verticalBase64 = enhancement.data['imageVerticalBase64'];
+      if (verticalBase64 is String && verticalBase64.isNotEmpty) {
+        final verticalPath = 'products/${fileStem}_story.jpg';
+        await supabase.storage.from(storageBucket).uploadBinary(
+          verticalPath,
+          base64Decode(verticalBase64),
+          fileOptions: const FileOptions(upsert: true),
+        );
+        verticalUrl = supabase.storage.from(storageBucket).getPublicUrl(verticalPath);
+      }
+
       // 3. Insertion dans la table `produits`
       await supabase.from('produits').insert({
         'id_vendeur': supabase.auth.currentUser!.id,
@@ -131,7 +169,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'description': _descriptionController.text,
         'prix': double.parse(_prixController.text),
         'stock': int.parse(_stockController.text),
+        'couleurs': _parseEntries(_couleursController.text),
+        'tailles': _parseEntries(_taillesController.text),
+        'caracteristiques': _parseEntries(_caracteristiquesController.text),
         'image_url': publicUrl,
+        'image_verticale_url': verticalUrl,
         'image_originale_url': originalUrl,
         'categorie': _categorie,
         'date_ajout': DateTime.now().toIso8601String(),
@@ -187,11 +229,66 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 validator: (v) => v!.isEmpty ? 'Champ requis' : null,
               ),
               const SizedBox(height: 20),
+              TextFormField(
+                controller: _couleursController,
+                decoration: const InputDecoration(
+                  labelText: 'Couleurs disponibles',
+                  hintText: 'Sépare les couleurs par une virgule',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _taillesController,
+                decoration: const InputDecoration(
+                  labelText: 'Tailles ou modèles disponibles',
+                  hintText: 'Sépare les options par une virgule',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _caracteristiquesController,
+                decoration: const InputDecoration(
+                  labelText: 'Caractéristiques',
+                  hintText: 'Un détail par ligne',
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _scene,
+                decoration: const InputDecoration(
+                  labelText: 'Mise en scène IA (Studio Photo)',
+                  helperText:
+                      'Détourage + décor, puis export carré et vertical (Story).',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'studio',
+                    child: Text('Studio professionnel'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'neutre',
+                    child: Text('Fond neutre épuré'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'dressing',
+                    child: Text('Dressing lumineux'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'mannequin',
+                    child: Text('Mannequin virtuel'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _scene = value);
+                },
+              ),
+              const SizedBox(height: 12),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.auto_awesome, color: AppColor.primary),
                 title: Text('Photo catalogue professionnelle'),
-                subtitle: Text('Gemini crée une image catalogue carrée. L’original est conservé pour restauration. Une génération peut être facturée.'),
+                subtitle: Text('Gemini détoure le produit, améliore éclairage et contraste, puis crée une image carrée (catalogue) et une image verticale (Story). L’original est conservé pour restauration. Une génération peut être facturée.'),
               ),
               _imageFile == null
                   ? OutlinedButton.icon(

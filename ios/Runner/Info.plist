@@ -26,6 +26,9 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Votre position est partagée avec l’acheteur uniquement pendant une livraison active.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -1,3 +1,5 @@
+export {};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -79,6 +81,8 @@ denoRuntime.serve(async (request: Request) => {
     const productName = typeof body.productName === "string" ? body.productName.trim() : "";
     const description = typeof body.description === "string" ? body.description.trim() : "";
     const price = typeof body.price === "string" || typeof body.price === "number" ? String(body.price) : "";
+    const creativeDirection = typeof body.creativeDirection === "string" ? body.creativeDirection.trim() : "";
+    const productImageUrl = typeof body.productImageUrl === "string" ? body.productImageUrl : "";
     const platforms: string[] = Array.isArray(body.platforms)
       ? [...new Set<string>((body.platforms as unknown[]).filter((platform): platform is string => typeof platform === "string" && allowedPlatforms.has(platform)))]
       : [];
@@ -88,11 +92,35 @@ denoRuntime.serve(async (request: Request) => {
       return jsonResponse({ error: "Indique un produit et au moins un réseau pris en charge." }, 400);
     }
 
+    let productImageBase64 = "";
+    let productImageMimeType = "image/jpeg";
+    if (productImageUrl) {
+      const imageUrl = new URL(productImageUrl);
+      const projectUrl = new URL(supabaseUrl);
+      if (imageUrl.host !== projectUrl.host || !imageUrl.pathname.startsWith("/storage/v1/object/public/images/")) {
+        return jsonResponse({ error: "L'image de référence doit provenir du stockage public A'samesse." }, 400);
+      }
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) return jsonResponse({ error: "Lecture de la photo de référence impossible." }, 502);
+      const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
+      if (imageBytes.length > 9_000_000) return jsonResponse({ error: "La photo dépasse la limite de 9 Mo." }, 413);
+      const mimeType = imageResponse.headers.get("content-type")?.split(";")[0];
+      if (mimeType !== "image/jpeg" && mimeType !== "image/png" && mimeType !== "image/webp") {
+        return jsonResponse({ error: "La photo doit être au format JPEG, PNG ou WebP." }, 415);
+      }
+      productImageMimeType = mimeType;
+      productImageBase64 = btoa(Array.from(imageBytes, (byte) => String.fromCharCode(byte)).join(""));
+    }
+
     const platformInstructions = platforms
       .map((platform: string) => `- ${platform}: ${platformFormats[platform]}`)
       .join("\n");
 
-    const prompt = `Tu es responsable marketing pour une boutique e-commerce francophone. Génère un contenu distinct pour chaque réseau demandé. Retourne uniquement un JSON valide sous la forme {"contents":[{"platform":"...","caption":"...","hashtags":["..."],"visual_prompt":"..."}]}. N'invente pas de caractéristiques produit non fournies.\n\nProduit: ${productName}\nDescription: ${description || "non fournie"}\nPrix: ${price || "non fourni"}\nRéseaux et consignes de format:\n${platformInstructions}`;
+    const prompt = `Tu es un assistant marketing pour une boutique e-commerce francophone. Génère un contenu distinct pour chaque réseau demandé. Retourne uniquement un JSON valide sous la forme {"contents":[{"platform":"...","caption":"...","hashtags":["..."],"visual_prompt":"..."}]}. N'invente pas de caractéristiques produit non fournies. ${creativeDirection ? `Consigne de modification du vendeur: ${creativeDirection}` : ""} ${productImageBase64 ? "Utilise la photo jointe comme référence fidèle du produit." : ""}\n\nProduit: ${productName}\nDescription: ${description || "non fournie"}\nPrix: ${price || "non fourni"}\nRéseaux et consignes de format:\n${platformInstructions}`;
+    const textParts: Array<Record<string, unknown>> = [{ text: prompt }];
+    if (productImageBase64) {
+      textParts.push({ inlineData: { mimeType: productImageMimeType, data: productImageBase64 } });
+    }
 
     const geminiResponse = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
@@ -103,7 +131,7 @@ denoRuntime.serve(async (request: Request) => {
           "x-goog-api-key": geminiApiKey,
         },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          contents: [{ role: "user", parts: textParts }],
           generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
         }),
       },
@@ -147,7 +175,12 @@ denoRuntime.serve(async (request: Request) => {
             headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
             body: JSON.stringify({
               model: "gemini-3.1-flash-image",
-              input: imagePrompt,
+              input: productImageBase64
+                ? [
+                    { type: "text", text: imagePrompt },
+                    { type: "image", data: productImageBase64, mime_type: productImageMimeType },
+                  ]
+                : imagePrompt,
               response_format: {
                 type: "image",
                 mime_type: "image/jpeg",

@@ -14,9 +14,9 @@ class DealsScreen extends StatefulWidget {
 
 class _DealsScreenState extends State<DealsScreen> {
   final _supabase = Supabase.instance.client;
-  
+
   // Variable de rôle de l'utilisateur
-  bool _isVendor = false; 
+  bool _isVendor = false;
 
   @override
   void initState() {
@@ -30,12 +30,15 @@ class _DealsScreenState extends State<DealsScreen> {
       final user = _supabase.auth.currentUser;
       if (user != null) {
         final data = await _supabase
-            .from('utilisateurs') // Correction : utilisation de la bonne table 'utilisateurs'
+            .from(
+              'utilisateurs',
+            ) // Correction : utilisation de la bonne table 'utilisateurs'
             .select('role')
             .eq('id_utilisateur', user.id)
             .maybeSingle();
-        
-        if (data != null && data['role']?.toString().toLowerCase() == 'vendeur') {
+
+        if (data != null &&
+            data['role']?.toString().toLowerCase() == 'vendeur') {
           if (mounted) {
             setState(() {
               _isVendor = true;
@@ -65,12 +68,91 @@ class _DealsScreenState extends State<DealsScreen> {
     );
   }
 
+  // Durée minimale et maximale autorisées pour une vente éphémère.
+  static const Duration _minDealDuration = Duration(hours: 1);
+  static const Duration _maxDealDuration = Duration(days: 30);
+
+  String _formatPreset(Duration duration) {
+    if (duration.inDays >= 1) {
+      return duration.inDays == 1 ? '24 h' : '${duration.inDays} jours';
+    }
+    return '${duration.inHours} h';
+  }
+
+  String _formatEndDate(DateTime date) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)}/${date.year} '
+        'à ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  String? _validateEndDate(DateTime endDate, DateTime now) {
+    if (!endDate.isAfter(now.add(_minDealDuration))) {
+      return "La fin de la vente doit être au moins 1 heure après maintenant.";
+    }
+    if (endDate.isAfter(now.add(_maxDealDuration))) {
+      return "La fin de la vente ne peut pas dépasser 30 jours.";
+    }
+    return null;
+  }
+
+  Future<DateTime?> _pickEndDate(BuildContext context, DateTime initial) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now : initial,
+      firstDate: now,
+      lastDate: now.add(_maxDealDuration),
+      helpText: "Date de fin de la vente",
+    );
+    if (date == null || !context.mounted) return null;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      helpText: "Heure de fin de la vente",
+    );
+    if (time == null) return null;
+
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
   // Boîte de dialogue pour créer une nouvelle vente éphémère (Réservée au vendeur)
-  void _showCreateDealDialog() {
-    final produitIdController = TextEditingController();
+  Future<void> _showCreateDealDialog() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    List<Map<String, dynamic>> products;
+    try {
+      final response = await _supabase
+          .from('produits')
+          .select('id_produit, nom_produit, prix')
+          .eq('id_vendeur', user.id)
+          .order('date_ajout', ascending: false);
+      products = List<Map<String, dynamic>>.from(response);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Chargement des produits impossible : $error'),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (products.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ajoutez un produit avant de créer une vente.'),
+        ),
+      );
+      return;
+    }
+
+    String selectedProductId = products.first['id_produit'].toString();
+    final nomController = TextEditingController();
     final prixPromoController = TextEditingController();
     String typeVente = "Vente Flash";
-    int durationHours = 2;
+    DateTime endDate = DateTime.now().add(const Duration(hours: 24));
 
     showDialog(
       context: context,
@@ -83,12 +165,29 @@ class _DealsScreenState extends State<DealsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    TextField(
+                      controller: nomController,
+                      maxLength: 60,
+                      decoration: const InputDecoration(
+                        labelText: "Nom de la vente",
+                        hintText: "Ex : Vide-dressing de marque",
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       initialValue: typeVente,
-                      decoration: const InputDecoration(labelText: "Type de vente"),
+                      decoration: const InputDecoration(
+                        labelText: "Type de vente",
+                      ),
                       items: const [
-                        DropdownMenuItem(value: "Vente Flash", child: Text("Vente Flash")),
-                        DropdownMenuItem(value: "Vide Dressing", child: Text("Vide Dressing")),
+                        DropdownMenuItem(
+                          value: "Vente Flash",
+                          child: Text("Vente Flash"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Vide Dressing",
+                          child: Text("Vide Dressing"),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -97,35 +196,71 @@ class _DealsScreenState extends State<DealsScreen> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: produitIdController,
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedProductId,
                       decoration: const InputDecoration(
-                        labelText: "ID du Produit",
-                        hintText: "Entrez l'ID du produit concerné",
+                        labelText: 'Produit concerné',
                       ),
+                      items: products.map((product) {
+                        final id = product['id_produit'].toString();
+                        final name =
+                            product['nom_produit']?.toString() ?? 'Produit';
+                        return DropdownMenuItem(
+                          value: id,
+                          child: Text(name, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedProductId = value);
+                        }
+                      },
                     ),
                     TextField(
                       controller: prixPromoController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Prix Promo (FCFA)"),
+                      decoration: const InputDecoration(
+                        labelText: "Prix Promo (FCFA)",
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<int>(
-                      initialValue: durationHours,
-                      decoration: const InputDecoration(labelText: "Durée de l'offre"),
-                      items: const [
-                        DropdownMenuItem(value: 1, child: Text("1 Heure")),
-                        DropdownMenuItem(value: 2, child: Text("2 Heures")),
-                        DropdownMenuItem(value: 6, child: Text("6 Heures")),
-                        DropdownMenuItem(value: 12, child: Text("12 Heures")),
-                        DropdownMenuItem(value: 24, child: Text("24 Heures")),
-                        DropdownMenuItem(value: 48, child: Text("48 Heures")),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => durationHours = val);
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          for (final preset in const [
+                            Duration(hours: 6),
+                            Duration(days: 1),
+                            Duration(days: 3),
+                            Duration(days: 7),
+                            Duration(days: 30),
+                          ])
+                            ActionChip(
+                              label: Text(_formatPreset(preset)),
+                              onPressed: () => setDialogState(
+                                () => endDate = DateTime.now().add(preset),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.event),
+                      label: Text("Fin de la vente : ${_formatEndDate(endDate)}"),
+                      onPressed: () async {
+                        final picked = await _pickEndDate(context, endDate);
+                        if (picked != null) {
+                          setDialogState(() => endDate = picked);
                         }
                       },
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Durée personnalisable : de quelques heures à 30 jours maximum.",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -136,35 +271,53 @@ class _DealsScreenState extends State<DealsScreen> {
                   child: const Text("Annuler"),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColor.primary),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColor.primary,
+                  ),
                   onPressed: () async {
-                    if (produitIdController.text.isEmpty || prixPromoController.text.isEmpty) {
+                    final nom = nomController.text.trim();
+                    if (nom.isEmpty ||
+                        prixPromoController.text.isEmpty ||
+                        (double.tryParse(prixPromoController.text) ?? 0) <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Veuillez remplir tous les champs.")),
+                        const SnackBar(
+                          content: Text(
+                            "Veuillez renseigner le nom de la vente et un prix promo valide.",
+                          ),
+                        ),
                       );
                       return;
                     }
 
                     final now = DateTime.now();
-                    final endDate = now.add(Duration(hours: durationHours));
+                    final validationError = _validateEndDate(endDate, now);
+                    if (validationError != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(validationError)),
+                      );
+                      return;
+                    }
 
                     await _supabase.from('ventes_ephemeres').insert({
-                      'id_produit': produitIdController.text.trim(),
-                      'prix_promo': double.tryParse(prixPromoController.text) ?? 0,
+                      'nom_vente': nom,
+                      'id_produit': selectedProductId,
+                      'prix_promo': double.parse(prixPromoController.text),
                       'type_vente': typeVente,
                       'date_debut': now.toIso8601String(),
                       'date_fin': endDate.toIso8601String(),
                       'statut': 'actif',
                     });
 
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("$typeVente créée avec succès !")),
-                      );
-                    }
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("« $nom » publiée avec succès !")),
+                    );
                   },
-                  child: const Text("Publier", style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    "Publier",
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -183,7 +336,10 @@ class _DealsScreenState extends State<DealsScreen> {
         elevation: 0,
         title: Text(
           "A'samesse",
-          style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColor.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
@@ -206,7 +362,10 @@ class _DealsScreenState extends State<DealsScreen> {
               onPressed: _showCreateDealDialog,
               backgroundColor: AppColor.primary,
               icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text("Nouvelle Vente", style: TextStyle(color: Colors.white)),
+              label: const Text(
+                "Nouvelle Vente",
+                style: TextStyle(color: Colors.white),
+              ),
             )
           : null,
       body: StreamBuilder<List<Map<String, dynamic>>>(
@@ -235,7 +394,11 @@ class _DealsScreenState extends State<DealsScreen> {
                 const SizedBox(height: 20),
 
                 // Bannière de décompte de la vente la plus proche de l'expiration
-                if (deals.isNotEmpty) _LiveTimerBanner(dateFinStr: deals.first['date_fin']),
+                if (deals.isNotEmpty)
+                  _LiveTimerBanner(
+                    dateFinStr: deals.first['date_fin'],
+                    nom: deals.first['nom_vente']?.toString(),
+                  ),
 
                 const SizedBox(height: 20),
 
@@ -274,6 +437,7 @@ class _DealsScreenState extends State<DealsScreen> {
     final String idVente = deal['id_vente_ephemere'].toString();
     final double prixPromo = (deal['prix_promo'] ?? 0).toDouble();
     final String typeVente = deal['type_vente'] ?? 'Vente Flash';
+    final String nomVente = (deal['nom_vente']?.toString() ?? '').trim();
 
     return Container(
       decoration: BoxDecoration(
@@ -292,16 +456,25 @@ class _DealsScreenState extends State<DealsScreen> {
                   height: 180,
                   width: double.infinity,
                   color: Colors.grey[200],
-                  child: const Icon(Icons.shopping_bag, size: 50, color: Colors.grey),
+                  child: const Icon(
+                    Icons.shopping_bag,
+                    size: 50,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
               Positioned(
                 top: 8,
                 left: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
-                    color: typeVente == 'Vide Dressing' ? Colors.purple : AppColor.primary,
+                    color: typeVente == 'Vide Dressing'
+                        ? Colors.purple
+                        : AppColor.primary,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -320,7 +493,11 @@ class _DealsScreenState extends State<DealsScreen> {
                 child: CircleAvatar(
                   backgroundColor: Colors.white,
                   child: IconButton(
-                    icon: const Icon(Icons.share, color: Colors.black, size: 20),
+                    icon: const Icon(
+                      Icons.share,
+                      color: Colors.black,
+                      size: 20,
+                    ),
                     onPressed: () => _shareDeal(idVente, typeVente),
                   ),
                 ),
@@ -329,13 +506,26 @@ class _DealsScreenState extends State<DealsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            "$typeVente - Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
+            nomVente.isNotEmpty
+                ? nomVente
+                : "$typeVente - Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
+          if (nomVente.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              "$typeVente · Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             "${prixPromo.toStringAsFixed(0)} FCFA",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColor.primary),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColor.primary,
+            ),
           ),
           const SizedBox(height: 12),
           AppleButton(
@@ -355,7 +545,8 @@ class _DealsScreenState extends State<DealsScreen> {
 /// Widget séparé pour le décompte en temps réel (évite de recharger tout l'écran chaque seconde)
 class _LiveTimerBanner extends StatefulWidget {
   final String dateFinStr;
-  const _LiveTimerBanner({required this.dateFinStr});
+  final String? nom;
+  const _LiveTimerBanner({required this.dateFinStr, this.nom});
 
   @override
   State<_LiveTimerBanner> createState() => _LiveTimerBannerState();
@@ -382,10 +573,27 @@ class _LiveTimerBannerState extends State<_LiveTimerBanner> {
   Widget build(BuildContext context) {
     final dateFin = DateTime.tryParse(widget.dateFinStr) ?? DateTime.now();
     final diff = dateFin.difference(DateTime.now());
+    final isLongSale = diff.inDays >= 1;
 
     final hours = diff.inHours.clamp(0, 99).toString().padLeft(2, '0');
-    final minutes = (diff.inMinutes % 60).clamp(0, 59).toString().padLeft(2, '0');
-    final seconds = (diff.inSeconds % 60).clamp(0, 59).toString().padLeft(2, '0');
+    final minutes = (diff.inMinutes % 60)
+        .clamp(0, 59)
+        .toString()
+        .padLeft(2, '0');
+    final seconds = (diff.inSeconds % 60)
+        .clamp(0, 59)
+        .toString()
+        .padLeft(2, '0');
+
+    String formatFull(DateTime date) {
+      String two(int value) => value.toString().padLeft(2, '0');
+      return '${two(date.day)}/${two(date.month)}/${date.year} '
+          'à ${two(date.hour)}:${two(date.minute)}';
+    }
+
+    final urgencyLabel = isLongSale
+        ? "Se termine dans ${diff.inDays} jour${diff.inDays > 1 ? 's' : ''}"
+        : "Fin dans";
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -395,27 +603,52 @@ class _LiveTimerBannerState extends State<_LiveTimerBanner> {
       ),
       child: Column(
         children: [
+          if (widget.nom != null && widget.nom!.trim().isNotEmpty) ...[
+            Text(
+              widget.nom!.trim(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+          ],
           Row(
             children: [
               Icon(Icons.bolt, color: AppColor.primary),
               const SizedBox(width: 8),
-              const Text(
-                "La vente expire dans :",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              Expanded(
+                child: Text(
+                  urgencyLabel,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildTimerBox(hours, "HEURES"),
-              const Text(" : ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-              _buildTimerBox(minutes, "MINUTES"),
-              const Text(" : ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-              _buildTimerBox(seconds, "SECONDES"),
-            ],
-          ),
+          if (isLongSale)
+            Text(
+              "Jusqu'au ${formatFull(dateFin)}",
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildTimerBox(hours, "HEURES"),
+                const Text(
+                  " : ",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                _buildTimerBox(minutes, "MINUTES"),
+                const Text(
+                  " : ",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                _buildTimerBox(seconds, "SECONDES"),
+              ],
+            ),
         ],
       ),
     );
@@ -432,11 +665,22 @@ class _LiveTimerBannerState extends State<_LiveTimerBanner> {
           ),
           child: Text(
             value,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -445,15 +689,18 @@ class _LiveTimerBannerState extends State<_LiveTimerBanner> {
 class ProductSearchDelegate extends SearchDelegate {
   @override
   List<Widget>? buildActions(BuildContext context) => [
-        IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')
-      ];
+    IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+  ];
 
   @override
-  Widget? buildLeading(BuildContext context) =>
-      IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  Widget? buildLeading(BuildContext context) => IconButton(
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () => close(context, null),
+  );
 
   @override
-  Widget buildResults(BuildContext context) => Center(child: Text("Résultats pour : $query"));
+  Widget buildResults(BuildContext context) =>
+      Center(child: Text("Résultats pour : $query"));
 
   @override
   Widget buildSuggestions(BuildContext context) =>
