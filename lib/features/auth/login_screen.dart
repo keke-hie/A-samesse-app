@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/app_color.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
-import '../../core/widgets/apple_button.dart';
+import '../../core/widgets/primary_button.dart';
 import 'auth_screen_shell.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -93,74 +94,61 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return AuthScreenShell(
       title: 'Bon retour !',
-      subtitle: 'Connectez-vous pour retrouver votre espace.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AuthTextField(
-            controller: _emailController,
-            hintText: "Adresse email",
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-          ),
-          const SizedBox(height: 13),
-          AuthTextField(
-            controller: _passwordController,
-            hintText: "Mot de passe",
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _resetPassword,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                minimumSize: const Size(0, 30),
-                foregroundColor: AuthScreenShell.headingColor,
-              ),
-              child: const Text(
-                'Mot de passe oublié ?',
-                style: TextStyle(fontSize: 11),
+      subtitle: 'Connecte-toi pour retrouver ton espace.',
+      leading: IconButton(
+        tooltip: 'Retour',
+        color: Colors.white,
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+        onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+      ),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AuthTextField(
+              controller: _emailController,
+              hintText: 'Adresse email',
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+            ),
+            const SizedBox(height: 12),
+            AuthTextField(
+              controller: _passwordController,
+              hintText: 'Mot de passe',
+              obscureText: true,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _login(),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _resetPassword,
+                child: const Text('Mot de passe oublié ?'),
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          _isLoading
-              ? const SizedBox(
-                  height: 48,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : AppleButton(
-                  text: 'Se connecter',
-                  backgroundColor: AuthScreenShell.actionColor,
-                  onPressed: _login,
-                  height: 48,
+            const SizedBox(height: 8),
+            PrimaryButton(
+              text: 'Se connecter',
+              isLoading: _isLoading,
+              onPressed: _login,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Pas encore de compte ?',
+                  style: TextStyle(color: AppColor.textSecondary),
                 ),
-          const SizedBox(height: 19),
-          Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Text(
-                'Pas encore de compte ?',
-                style: TextStyle(fontSize: 12, color: Color(0xFF9B7779)),
-              ),
-              TextButton(
-                onPressed: () => context.go('/register'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  minimumSize: const Size(0, 32),
-                  foregroundColor: AuthScreenShell.headingColor,
+                TextButton(
+                  onPressed: () => context.go('/register'),
+                  child: const Text('S’inscrire'),
                 ),
-                child: const Text(
-                  'Inscrivez-vous',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -47,6 +47,11 @@ dependencies:
   flutter_map: ^7.0.0
   geolocator: ^13.0.2
 
+# cupertino_ui 1.1.0 (tirée par go_router 18) est retirée par son auteur et
+# ne compile pas avec Flutter 3.44 (`awaitNotRequired` introuvable).
+dependency_overrides:
+  cupertino_ui: 1.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

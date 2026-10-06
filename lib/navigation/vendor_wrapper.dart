@@ -1,86 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../core/constants/app_color.dart';
-import '../core/localization/app_locale.dart';
+
+import 'nav_shell.dart';
 
 class VendorWrapper extends StatelessWidget {
-  final Widget child;
-
   const VendorWrapper({super.key, required this.child});
 
-  int _selectedIndex(String location) {
-    if (location.startsWith('/vendor/shop-management') ||
-        location.startsWith('/vendor/products')) return 1;
-    if (location.startsWith('/vendor/sales') ||
-        location.startsWith('/vendor/orders')) return 2;
-    if (location.startsWith('/vendor/marketing-ia') ||
-        location.startsWith('/vendor/campaign-refine')) return 3;
-    if (location.startsWith('/vendor/profile')) return 4;
-    return 0;
-  }
+  final Widget child;
 
-  void _navigate(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/vendor/dashboard');
-        return;
-      case 1:
-        context.go('/vendor/shop-management');
-        return;
-      case 2:
-        context.go('/vendor/sales');
-        return;
-      case 3:
-        context.go('/vendor/marketing-ia');
-        return;
-      case 4:
-        context.go('/vendor/profile');
-        return;
-      default:
-        return;
-    }
-  }
+  static final _items = [
+    const NavItem(
+      location: '/vendor/dashboard',
+      label: 'Accueil',
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard_rounded,
+    ),
+    NavItem(
+      location: '/vendor/shop-management',
+      label: 'Boutique',
+      icon: Icons.storefront_outlined,
+      selectedIcon: Icons.storefront_rounded,
+      matches: (uri) =>
+          uri.path.startsWith('/vendor/shop-management') ||
+          uri.path.startsWith('/vendor/products') ||
+          uri.path.startsWith('/vendor/deals'),
+    ),
+    NavItem(
+      location: '/vendor/sales',
+      label: 'Commandes',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
+      matches: (uri) =>
+          uri.path.startsWith('/vendor/sales') || uri.path.startsWith('/vendor/orders'),
+    ),
+    NavItem(
+      location: '/vendor/marketing-ia',
+      label: 'Marketing',
+      icon: Icons.auto_awesome_outlined,
+      selectedIcon: Icons.auto_awesome,
+      matches: (uri) =>
+          uri.path.startsWith('/vendor/marketing-ia') ||
+          uri.path.startsWith('/vendor/campaign-refine'),
+    ),
+    const NavItem(
+      location: '/vendor/profile',
+      label: 'Profil',
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+    ),
+  ];
 
   @override
-  Widget build(BuildContext context) {
-    final selectedIndex = _selectedIndex(GoRouterState.of(context).uri.path);
-
-    final destinations = [
-      NavigationDestination(
-        icon: const Icon(Icons.dashboard_outlined),
-        selectedIcon: const Icon(Icons.dashboard),
-        label: AppLocale.text(context, 'Dashboard', 'Dashboard'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.storefront_outlined),
-        selectedIcon: const Icon(Icons.storefront),
-        label: AppLocale.text(context, 'Ma boutique', 'My Shop'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.point_of_sale_outlined),
-        selectedIcon: const Icon(Icons.point_of_sale),
-        label: AppLocale.text(context, 'Ventes', 'Sales'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.auto_awesome_outlined),
-        selectedIcon: const Icon(Icons.auto_awesome),
-        label: AppLocale.text(context, 'Marketing IA', 'Marketing AI'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.person_outline),
-        selectedIcon: const Icon(Icons.person),
-        label: AppLocale.text(context, 'Profil', 'Profile'),
-      ),
-    ];
-
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => _navigate(context, index),
-        indicatorColor: AppColor.primarySoft,
-        destinations: destinations,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => NavShell(items: _items, child: child);
 }

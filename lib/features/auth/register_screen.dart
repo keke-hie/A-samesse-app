@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_color.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
-import '../../core/widgets/apple_button.dart';
+import '../../core/widgets/primary_button.dart';
 import 'auth_screen_shell.dart';
 
 enum _SignupRole {
@@ -285,7 +285,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            AppleButton(
+            PrimaryButton(
               text: 'Créer mon compte',
               isLoading: _isLoading,
               onPressed: _signUp,

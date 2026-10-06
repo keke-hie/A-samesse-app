@@ -8,7 +8,7 @@ import '../../core/constants/product_categories.dart';
 import '../../core/services/vendor_service.dart';
 import '../../core/utils/error_message.dart';
 import '../../core/utils/formatters.dart';
-import '../../core/widgets/apple_button.dart';
+import '../../core/widgets/primary_button.dart';
 import '../../core/widgets/product_image.dart';
 
 /// Création et modification d'un produit par le vendeur.
@@ -330,7 +330,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            AppleButton(
+            PrimaryButton(
               text: _isEditing ? 'Enregistrer' : 'Publier le produit',
               isLoading: _isSaving,
               onPressed: _save,

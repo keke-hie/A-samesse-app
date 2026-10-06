@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
-import '../../../core/widgets/apple_button.dart';
+import '../../../core/widgets/primary_button.dart';
 
 class MarketingiaScreen extends StatefulWidget {
   final String? initialPlatform;
@@ -440,7 +440,7 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
                   ),
                   const SizedBox(height: 8),
                   ListTile(
-                    tileColor: AppColor.cardBackground,
+                    tileColor: AppColor.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -503,7 +503,7 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
                         avatar: Icon(platform['icon'] as IconData, size: 18),
                         label: Text(platform['label'] as String),
                         selected: isSelected,
-                        selectedColor: AppColor.cardBackground,
+                        selectedColor: AppColor.surface,
                         checkmarkColor: AppColor.primary,
                         side: BorderSide(
                           color: isSelected
@@ -566,7 +566,7 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
               const SizedBox(height: 12),
             ],
 
-            AppleButton(
+            PrimaryButton(
               text: "Générer avec l'IA",
               icon: Icons.bolt,
               onPressed: _isGenerating
@@ -663,7 +663,7 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Idée visuelle : ${content['visual_prompt']}',
-                          style: const TextStyle(color: Colors.black54),
+                          style: const TextStyle(color: AppColor.textSecondary),
                         ),
                       ],
                       const SizedBox(height: 8),

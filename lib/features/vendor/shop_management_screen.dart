@@ -1154,7 +1154,7 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 13,
-                                          color: Colors.black87,
+                                          color: AppColor.textPrimary,
                                         ),
                                       ),
                                       const SizedBox(height: 3),

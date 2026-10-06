@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_color.dart';
 
 /// Bouton principal de l'application (pleine largeur, forme pilule).
-class AppleButton extends StatelessWidget {
+class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final IconData? icon;
@@ -12,7 +12,7 @@ class AppleButton extends StatelessWidget {
   final bool isLoading;
   final double height;
 
-  const AppleButton({
+  const PrimaryButton({
     super.key,
     required this.text,
     required this.onPressed,

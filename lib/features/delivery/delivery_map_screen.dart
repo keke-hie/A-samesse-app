@@ -534,7 +534,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                 ),
                 _deliveryActionButton(
                   label: 'Refuser',
-                  color: const Color(0xFFD95D5D),
+                  color: AppColor.danger,
                   onPressed: () => _declineDelivery(delivery),
                 ),
               ],
@@ -821,7 +821,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
               'Total',
               order['montant_total'] == null
                   ? 'À confirmer'
-                  : '${order['montant_total']} FCFA',
+                  : formatPrice(order['montant_total']),
             ),
             const SizedBox(height: 14),
             const Text(
@@ -1113,7 +1113,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                         "Arrivée estimée",
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF757575),
+                          color: AppColor.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1257,7 +1257,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                               "Véhicule de livraison Express • Douala",
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF757575),
+                                color: AppColor.textSecondary,
                               ),
                             ),
                           ],
@@ -1303,7 +1303,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: isCompleted ? AppColor.primary : const Color(0xFFF2F2F2),
+                color: isCompleted ? AppColor.primary : AppColor.divider,
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1316,7 +1316,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
               Container(
                 width: 2,
                 height: 34,
-                color: isCompleted ? AppColor.primary : const Color(0xFFF2F2F2),
+                color: isCompleted ? AppColor.primary : AppColor.divider,
               ),
           ],
         ),
@@ -1332,7 +1332,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                   fontWeight: isCompleted ? FontWeight.bold : FontWeight.w500,
                   color: isCompleted
                       ? AppColor.textPrimary
-                      : const Color(0xFF9E9E9E),
+                      : AppColor.textMuted,
                 ),
               ),
               const SizedBox(height: 2),

@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/vendor_service.dart';
 import '../../../../core/utils/error_message.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/apple_button.dart';
+import '../../../../core/widgets/primary_button.dart';
 
 /// Formulaire vendeur de création d'une vente éphémère.
 /// Renvoie `true` si une vente a été publiée.
@@ -234,7 +234,7 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
                     label: Text('Fin : ${formatDate(_endDate, withTime: true)}'),
                   ),
                   const SizedBox(height: 20),
-                  AppleButton(
+                  PrimaryButton(
                     text: 'Publier la vente',
                     isLoading: _isSaving,
                     onPressed: _publish,

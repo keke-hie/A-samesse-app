@@ -1,67 +1,52 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../core/localization/app_locale.dart';
+
+import 'nav_shell.dart';
 
 class AdminWrapper extends StatelessWidget {
-  final Widget child;
-
   const AdminWrapper({super.key, required this.child});
 
-  static const _locations = [
-    '/admin/dashboard',
-    '/admin/management?tab=orders',
-    '/admin/management?tab=users',
-    '/admin/management?tab=disputes',
-    '/admin/profile',
+  final Widget child;
+
+  static bool _isTab(Uri uri, String? tab) =>
+      uri.path.startsWith('/admin/management') &&
+      (uri.queryParameters['tab'] ?? 'orders') == tab;
+
+  static final _items = [
+    const NavItem(
+      location: '/admin/dashboard',
+      label: 'Accueil',
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard_rounded,
+    ),
+    NavItem(
+      location: '/admin/management?tab=orders',
+      label: 'Commandes',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
+      matches: (uri) => _isTab(uri, 'orders'),
+    ),
+    NavItem(
+      location: '/admin/management?tab=users',
+      label: 'Comptes',
+      icon: Icons.people_outline_rounded,
+      selectedIcon: Icons.people_rounded,
+      matches: (uri) => _isTab(uri, 'users'),
+    ),
+    NavItem(
+      location: '/admin/management?tab=disputes',
+      label: 'Litiges',
+      icon: Icons.report_problem_outlined,
+      selectedIcon: Icons.report_problem_rounded,
+      matches: (uri) => _isTab(uri, 'disputes'),
+    ),
+    const NavItem(
+      location: '/admin/profile',
+      label: 'Profil',
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+    ),
   ];
 
-  int _selectedIndex(Uri uri) {
-    if (uri.path.startsWith('/admin/management')) {
-      return switch (uri.queryParameters['tab']) {
-        'users' => 2,
-        'disputes' => 3,
-        _ => 1,
-      };
-    }
-    if (uri.path.startsWith('/admin/profile')) return 4;
-    return 0;
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex(GoRouterState.of(context).uri),
-        onDestinationSelected: (index) => context.go(_locations[index]),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.dashboard_outlined),
-            selectedIcon: const Icon(Icons.dashboard),
-            label: AppLocale.text(context, 'Accueil', 'Home'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.receipt_long_outlined),
-            selectedIcon: const Icon(Icons.receipt_long),
-            label: AppLocale.text(context, 'Commandes', 'Orders'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.people_outline),
-            selectedIcon: const Icon(Icons.people),
-            label: AppLocale.text(context, 'Comptes', 'Accounts'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.report_problem_outlined),
-            selectedIcon: const Icon(Icons.report_problem),
-            label: AppLocale.text(context, 'Litiges', 'Disputes'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            selectedIcon: const Icon(Icons.person),
-            label: AppLocale.text(context, 'Profil', 'Profile'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => NavShell(items: _items, child: child);
 }
