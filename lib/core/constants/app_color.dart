@@ -35,6 +35,10 @@ class AppColor {
 
   // Statuts & Badges
   static const Color success = Color(0xFF2E7D32);
+  static const Color successSoft = Color(0xFFE8F5E9);
+  static const Color warning = Color(0xFF9E6A16);
+  static const Color danger = Color(0xFFB42332);
+  static const Color dangerSoft = Color(0xFFFDECEE);
   static const Color ratingStar = Color(0xFFFFB800);
 }
 

@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
+import '../../../core/services/order_service.dart';
+import '../../../core/utils/error_message.dart';
+import '../../../core/utils/formatters.dart';
 
 class CartScreen extends StatefulWidget {
   final Map<String, dynamic>? extraData;
@@ -16,6 +19,7 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   final _supabase = Supabase.instance.client;
+  final _orderService = OrderService();
   int deliveryMode = 0;
   String _selectedPayment = 'orange_money';
   bool _isCheckingOut = false;
@@ -214,115 +218,51 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  Future<void> _checkout(double totalAmount, List<Map<String, dynamic>> items) async {
+  Future<void> _checkout(List<Map<String, dynamic>> items) async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
       context.go('/login');
       return;
     }
 
-    final selectedItems = items.where((item) => _selectedLineIds.contains(item['id_ligne'].toString())).toList();
-    if (selectedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sélectionnez au moins un article pour valider le panier.')),
-      );
+    final selectedIds = items
+        .map((item) => item['id_ligne'].toString())
+        .where(_selectedLineIds.contains)
+        .toList();
+    if (selectedIds.isEmpty) {
+      _showMessage('Sélectionnez au moins un article pour valider le panier.');
       return;
     }
-
     if (_deliveryLocation == null || _deliveryAddressController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choisis le point et saisis l’adresse de livraison.')),
-      );
+      _showMessage('Choisis le point et saisis l’adresse de livraison.');
       return;
-    }
-
-    for (final item in selectedItems) {
-      final product = item['produits'] as Map<String, dynamic>? ?? {};
-      final quantity = (item['quantite'] as num?)?.toInt() ?? 1;
-      final productId = product['id_produit'];
-      final stock = product['stock'];
-
-      if (productId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Un article sélectionné n’a pas d’identifiant produit valide.')),
-        );
-        return;
-      }
-      if (stock is num && quantity > stock.toInt()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stock insuffisant pour ${product['nom_produit'] ?? 'un article'} (disponible : ${stock.toInt()}).')),
-        );
-        return;
-      }
     }
 
     setState(() => _isCheckingOut = true);
-
     try {
-      final orderRes = await _supabase
-          .from('commandes')
-          .insert({
-            'id_acheteur': user.id,
-            'montant_total': totalAmount,
-            'statut': 'en_attente_paiement',
-            'mode_paiement': _selectedPayment,
-            'adresse_livraison': _deliveryAddressController.text.trim(),
-            'latitude_destination': _deliveryLocation!.latitude,
-            'longitude_destination': _deliveryLocation!.longitude,
-            'date_commande': DateTime.now().toIso8601String(),
-          })
-          .select('id_commande')
-          .single();
-
-      final idCommande = orderRes['id_commande'];
-
-      for (final item in selectedItems) {
-        final produit = item['produits'] ?? {};
-        final productId = produit['id_produit'];
-        final qty = (item['quantite'] ?? 1) as int;
-        final unitPrice = (produit['prix'] ?? 0) is num
-            ? (produit['prix'] ?? 0).toDouble()
-            : (double.tryParse((produit['prix'] ?? 0).toString()) ?? 0.0);
-
-        if (productId != null) {
-          await _supabase.from('lignes_commande').insert({
-            'id_commande': idCommande,
-            'id_produit': productId,
-            'quantite': qty,
-            'prix_unitaire': unitPrice,
-            'couleur': item['couleur'] ?? '',
-            'taille': item['taille'] ?? '',
-          });
-
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Commande enregistrée en attente de paiement. Le stock sera réservé après confirmation.'),
-            backgroundColor: Color(0xFF1E1E1E),
-          ),
-        );
-
-        context.go('/orders', extra: {
-          'id_commande': idCommande,
-          'montant_total': totalAmount,
-          'statut': 'en_attente_paiement',
-          'mode_paiement': _selectedPayment,
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la commande : $e')),
-        );
-      }
+      // Prix, stock et total sont recalculés et réservés côté serveur.
+      final orderId = await _orderService.createOrder(
+        cartLineIds: selectedIds,
+        paymentMethod: _selectedPayment,
+        deliveryMode: deliveryMode == 0 ? 'express' : 'standard',
+        address: _deliveryAddressController.text.trim(),
+        latitude: _deliveryLocation!.latitude,
+        longitude: _deliveryLocation!.longitude,
+      );
+      if (!mounted) return;
+      _selectedLineIds.removeAll(selectedIds);
+      _showMessage('Commande ${shortOrderRef(orderId)} enregistrée. Le stock est réservé.');
+      context.go('/orders');
+    } catch (error) {
+      if (mounted) _showMessage(friendlyError(error));
+      _refreshCartItems();
     } finally {
-      if (mounted) {
-        setState(() => _isCheckingOut = false);
-      }
+      if (mounted) setState(() => _isCheckingOut = false);
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -377,7 +317,9 @@ class _CartScreenState extends State<CartScreen> {
                   subtotal += price * qty;
                 }
 
-                final double deliveryFee = deliveryMode == 0 ? 1500.0 : 0.0;
+                final double deliveryFee = deliveryMode == 0
+                    ? OrderService.expressDeliveryFee.toDouble()
+                    : 0.0;
                 final double total = subtotal + deliveryFee;
 
                 return SingleChildScrollView(
@@ -552,7 +494,7 @@ class _CartScreenState extends State<CartScreen> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: _isCheckingOut ? null : () => _checkout(total, cartItems),
+                          onPressed: _isCheckingOut ? null : () => _checkout(cartItems),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColor.primary,
                             foregroundColor: Colors.white,

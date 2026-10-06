@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_color.dart';
+import '../../core/utils/error_message.dart';
+import '../../core/utils/formatters.dart';
 
 class DeliveryMapScreen extends StatefulWidget {
   final String? idCommande;
@@ -38,6 +40,8 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   String? _locationError;
   int _selectedDeliveryTab = 0;
   List<Map<String, dynamic>> _assignedDeliveries = [];
+  List<Map<String, dynamic>> _availableDeliveries = [];
+  final Set<String> _claiming = {};
 
   @override
   void initState() {
@@ -87,10 +91,12 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
           }
         }
 
+        final available = await _fetchAvailableDeliveries();
         if (mounted) {
           setState(() {
             _isCourier = true;
             _assignedDeliveries = deliveries;
+            _availableDeliveries = available;
             if (selectedDelivery != null) {
               _activeDeliveryId = selectedDelivery['id_livraison']?.toString();
               _activeCommandeId = selectedDelivery['id_commande']?.toString();
@@ -139,6 +145,46 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         );
     } finally {
       if (mounted) setState(() => _isInitializing = false);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAvailableDeliveries() async {
+    try {
+      final response = await _supabase.rpc('courier_list_available_deliveries');
+      return List<Map<String, dynamic>>.from(response as List);
+    } catch (_) {
+      // Compte livreur non validé ou réseau : la liste reste vide.
+      return [];
+    }
+  }
+
+  Future<void> _claimDelivery(Map<String, dynamic> delivery) async {
+    final id = delivery['id_livraison'].toString();
+    setState(() => _claiming.add(id));
+    try {
+      await _supabase.rpc(
+        'courier_claim_delivery',
+        params: {'p_id_livraison': id},
+      );
+      final assigned = await _supabase.rpc('courier_list_assigned_deliveries');
+      if (!mounted) return;
+      setState(() {
+        _availableDeliveries.removeWhere(
+          (item) => item['id_livraison'].toString() == id,
+        );
+        _assignedDeliveries = List<Map<String, dynamic>>.from(assigned as List);
+        _selectedDeliveryTab = 1;
+      });
+      await _startLocationSharing({...delivery, 'statut_livraison': 'en_cours'});
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(error))));
+      final available = await _fetchAvailableDeliveries();
+      if (mounted) setState(() => _availableDeliveries = available);
+    } finally {
+      if (mounted) setState(() => _claiming.remove(id));
     }
   }
 
@@ -267,19 +313,28 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         normalized == 'delivered';
   }
 
-  Widget _buildCourierDeliveryPicker() {
-    final deliveries = _assignedDeliveries.where((delivery) {
+  List<Map<String, dynamic>> _deliveriesForTab(int tab) {
+    final assigned = _assignedDeliveries.where((delivery) {
       final status = (delivery['statut_livraison'] ?? '')
           .toString()
           .toLowerCase();
       final delivered = _isDeliveryCompleted(status);
       final processing = status.contains('cours') || status.contains('route');
-      return switch (_selectedDeliveryTab) {
-        0 => !delivered && !processing && !status.contains('refus'),
+      return switch (tab) {
+        0 =>
+          !delivered &&
+              !processing &&
+              !status.contains('refus') &&
+              !status.contains('annul'),
         1 => !delivered && processing,
         _ => delivered,
       };
     }).toList();
+    return tab == 0 ? [...assigned, ..._availableDeliveries] : assigned;
+  }
+
+  Widget _buildCourierDeliveryPicker() {
+    final deliveries = _deliveriesForTab(_selectedDeliveryTab);
 
     return Scaffold(
       backgroundColor: AppColor.background,
@@ -306,7 +361,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
               segments: [
                 ButtonSegment(
                   value: 0,
-                  label: Text('Nouvelles (${_countDeliveries(0)})'),
+                  label: Text('À prendre (${_countDeliveries(0)})'),
                 ),
                 ButtonSegment(
                   value: 1,
@@ -362,20 +417,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     );
   }
 
-  int _countDeliveries(int tab) {
-    return _assignedDeliveries.where((delivery) {
-      final status = (delivery['statut_livraison'] ?? '')
-          .toString()
-          .toLowerCase();
-      final delivered = _isDeliveryCompleted(status);
-      final processing = status.contains('cours') || status.contains('route');
-      return switch (tab) {
-        0 => !delivered && !processing && !status.contains('refus'),
-        1 => !delivered && processing,
-        _ => delivered,
-      };
-    }).length;
-  }
+  int _countDeliveries(int tab) => _deliveriesForTab(tab).length;
 
   Map<String, dynamic> _orderForDelivery(Map<String, dynamic> delivery) {
     final order = delivery['commandes'];
@@ -409,6 +451,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         normalizedStatus.contains('cours') ||
         normalizedStatus.contains('route');
     final delivered = _isDeliveryCompleted(normalizedStatus);
+    final available = normalizedStatus == 'disponible';
     final total = order['montant_total'];
 
     return Container(
@@ -456,7 +499,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             ),
           ),
           if (total != null)
-            _deliveryInfoRow('Total', '${total.toString()} FCFA'),
+            _deliveryInfoRow('Total', formatPrice(total)),
           _deliveryInfoRow(
             'Destination',
             (delivery['adresse_destination'] ?? 'À confirmer').toString(),
@@ -478,7 +521,17 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             runSpacing: 8,
             alignment: WrapAlignment.spaceBetween,
             children: [
-              if (!processing && !delivered) ...[
+              if (available)
+                _deliveryActionButton(
+                  label: _claiming.contains(deliveryId)
+                      ? 'En cours…'
+                      : 'Prendre la livraison',
+                  color: AppColor.primary,
+                  onPressed: _claiming.contains(deliveryId)
+                      ? null
+                      : () => _claimDelivery(delivery),
+                ),
+              if (!available && !processing && !delivered) ...[
                 _deliveryActionButton(
                   label: 'Accepter',
                   color: AppColor.success,
@@ -569,7 +622,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   Widget _deliveryActionButton({
     required String label,
     required Color color,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     return ElevatedButton(
       onPressed: onPressed,

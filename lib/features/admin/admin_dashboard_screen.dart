@@ -65,10 +65,10 @@ class AdminDashboardScreen extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 1.3,
               children: [
-                _buildActionCard(context, 'Utilisateurs', Icons.people_outline, () => context.go('/admin/management')),
+                _buildActionCard(context, 'Comptes', Icons.people_outline, () => context.go('/admin/management?tab=users')),
                 _buildActionCard(context, 'Litiges', Icons.report_problem_outlined, () => context.go('/admin/management?tab=disputes')),
                 _buildActionCard(context, 'Analyses', Icons.show_chart_outlined, () => context.go('/admin/analytics')),
-                _buildActionCard(context, 'Gestion', Icons.admin_panel_settings_outlined, () => context.go('/admin/management')),
+                _buildActionCard(context, 'Commandes', Icons.receipt_long_outlined, () => context.go('/admin/management?tab=orders')),
               ],
             ),
           ],

@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: const Text('Utilisateurs'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  context.go('/admin/management');
+                  context.go('/admin/management?tab=users');
                 },
               ),
               ListTile(

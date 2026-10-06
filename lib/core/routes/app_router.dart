@@ -72,9 +72,16 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/orders',
-          builder: (context, state) => OrderTrackingScreen(
-            orderData: state.extra as Map<String, dynamic>?,
-          ),
+          builder: (context, state) => const OrderTrackingScreen(),
+          routes: [
+            GoRoute(
+              path: 'track/:orderId',
+              builder: (context, state) => DeliveryMapScreen(
+                idCommande: state.pathParameters['orderId'],
+                mapOnly: true,
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/profile',
@@ -182,7 +189,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/admin/management',
           builder: (context, state) => AdminManagementScreen(
-            initialTab: state.uri.queryParameters['tab'] == 'disputes' ? 1 : 0,
+            tab: AdminTab.parse(state.uri.queryParameters['tab']),
           ),
         ),
         GoRoute(
