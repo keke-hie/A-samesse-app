@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/widgets.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../routes/app_router.dart';
 import '../services/session_service.dart';
@@ -160,7 +159,7 @@ class DeepLinkService {
       case 'produit':
       case 'produits':
       case 'p':
-        await _openProduct(segments.length > 1 ? segments[1] : null);
+        _openProduct(segments.length > 1 ? segments[1] : null);
         break;
       case 'vendor':
       case 'vendeur':
@@ -191,28 +190,12 @@ class DeepLinkService {
     return segments;
   }
 
-  /// Ouvre la fiche produit correspondant à [productId].
-  ///
-  /// La fiche produit attend une `Map` complète : on la charge depuis Supabase
-  /// puis on navigue via l'événement `extra` de `go_router`.
-  Future<void> _openProduct(String? productId) async {
+  /// Ouvre la fiche produit : elle charge elle-même le produit par identifiant.
+  void _openProduct(String? productId) {
     if (productId == null || productId.isEmpty) {
       appRouter.go('/home');
       return;
     }
-    try {
-      final product = await Supabase.instance.client
-          .from('produits')
-          .select('*')
-          .eq('id_produit', productId)
-          .maybeSingle();
-      if (product != null) {
-        appRouter.go('/home/product-detail', extra: product);
-        return;
-      }
-    } catch (error) {
-      debugPrint('DeepLinkService : produit introuvable ($error)');
-    }
-    appRouter.go('/home');
+    appRouter.go('/home/product/${Uri.encodeComponent(productId)}');
   }
 }

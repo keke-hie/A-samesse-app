@@ -63,6 +63,17 @@ class OrderService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<void> openDispute({
+    required String orderId,
+    required String reason,
+    required String description,
+  }) => _supabase.from('litiges').insert({
+    'id_commande': orderId,
+    'id_acheteur': _supabase.auth.currentUser?.id,
+    'motif': reason,
+    'description': description,
+  });
+
   Future<String?> fetchDeliveryCode(String orderId) async {
     final response = await _supabase
         .from('delivery_otps')

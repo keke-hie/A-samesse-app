@@ -1,130 +1,208 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_color.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+import '../../core/constants/app_color.dart';
+import '../../core/models/order_status.dart';
+import '../../core/services/admin_service.dart';
+import '../../core/services/order_service.dart';
+import '../../core/utils/error_message.dart';
+import '../../core/utils/formatters.dart';
+import '../../core/widgets/empty_state.dart';
+
+class _AdminSummary {
+  _AdminSummary({required this.orders, required this.users, required this.disputes});
+
+  final List<Map<String, dynamic>> orders;
+  final List<Map<String, dynamic>> users;
+  final List<Map<String, dynamic>> disputes;
+
+  int countOrders(OrderStatus status) =>
+      orders.where((order) => OrderStatus.parse(order['statut']) == status).length;
+
+  num get paidSales => orders
+      .where((order) {
+        final status = OrderStatus.parse(order['statut']);
+        return status != OrderStatus.awaitingPayment && status != OrderStatus.cancelled;
+      })
+      .fold<num>(0, (sum, order) => sum + (parseAmount(order['montant_total']) ?? 0));
+
+  int get pendingAccounts =>
+      users.where((user) => user['statut_compte'] == 'en_attente').length;
+
+  int get openDisputes => disputes
+      .where((dispute) => const {'ouvert', 'en_examen'}.contains(dispute['statut']))
+      .length;
+}
+
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final _adminService = AdminService();
+  final _orderService = OrderService();
+  late Future<_AdminSummary> _summaryFuture = _load();
+
+  Future<_AdminSummary> _load() async {
+    final results = await Future.wait<List<Map<String, dynamic>>>([
+      _orderService.adminListOrders(),
+      _adminService.listUsers(),
+      _adminService.listDisputes(),
+    ]);
+    return _AdminSummary(orders: results[0], users: results[1], disputes: results[2]);
+  }
+
+  Future<void> _reload() async {
+    final future = _load();
+    setState(() => _summaryFuture = future);
+    await future;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColor.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const Icon(Icons.menu, color: Colors.black),
-        title: Text(
-          "A'samesse",
-          style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Administration'),
         actions: [
-          IconButton(icon: const Icon(Icons.search, color: Colors.black), onPressed: () {}),
-          const CircleAvatar(
-            radius: 14,
-            backgroundImage: NetworkImage('https://i.pravatar.cc/100'),
-          ),
-          const SizedBox(width: 16),
+          IconButton(onPressed: _reload, tooltip: 'Actualiser', icon: const Icon(Icons.refresh)),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Bonjour, Admin",
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Voici la vue d'ensemble des performances de votre boutique pour aujourd'hui.",
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
+      body: FutureBuilder<_AdminSummary>(
+        future: _summaryFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return EmptyState(
+              icon: Icons.cloud_off_outlined,
+              title: 'Chargement impossible',
+              message: friendlyError(snapshot.error!),
+              actionLabel: 'Réessayer',
+              onAction: _reload,
+            );
+          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final summary = snapshot.data!;
+          final awaitingPayment = summary.countOrders(OrderStatus.awaitingPayment);
 
-            // Cartes de statistiques principales
-            _buildStatCard("VENTES TOTALES", "Données non disponibles", "", Icons.account_balance_wallet_outlined),
-            const SizedBox(height: 12),
-            _buildStatCard("COMMANDES", "Données non disponibles", "", Icons.shopping_bag_outlined),
-            const SizedBox(height: 12),
-            _buildStatCard("PRODUITS ACTIFS", "Données non disponibles", "", Icons.inventory_2_outlined),
-
-            const SizedBox(height: 24),
-            const Text(
-              "FONCTIONNALITÉS CLÉS",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.1),
-            ),
-            const SizedBox(height: 12),
-
-            // Role-specific management shortcuts
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.3,
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                _buildActionCard(context, 'Comptes', Icons.people_outline, () => context.go('/admin/management?tab=users')),
-                _buildActionCard(context, 'Litiges', Icons.report_problem_outlined, () => context.go('/admin/management?tab=disputes')),
-                _buildActionCard(context, 'Analyses', Icons.show_chart_outlined, () => context.go('/admin/analytics')),
-                _buildActionCard(context, 'Commandes', Icons.receipt_long_outlined, () => context.go('/admin/management?tab=orders')),
+                Text('À traiter', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                _TodoTile(
+                  icon: Icons.payments_outlined,
+                  label: 'Paiements à confirmer',
+                  count: awaitingPayment,
+                  onTap: () => context.go('/admin/management?tab=orders'),
+                ),
+                _TodoTile(
+                  icon: Icons.how_to_reg_outlined,
+                  label: 'Comptes pro à valider',
+                  count: summary.pendingAccounts,
+                  onTap: () => context.go('/admin/management?tab=users'),
+                ),
+                _TodoTile(
+                  icon: Icons.report_problem_outlined,
+                  label: 'Litiges ouverts',
+                  count: summary.openDisputes,
+                  onTap: () => context.go('/admin/management?tab=disputes'),
+                ),
+                const SizedBox(height: 20),
+                Text('Activité', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.5,
+                  children: [
+                    _Stat('Ventes payées', formatPrice(summary.paidSales)),
+                    _Stat('Commandes', '${summary.orders.length}'),
+                    _Stat('En livraison', '${summary.countOrders(OrderStatus.shipping)}'),
+                    _Stat('Utilisateurs', '${summary.users.length}'),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _buildStatCard(String title, String value, String rate, IconData icon) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: AppColor.primary),
-              if (rate.isNotEmpty)
-                Text(rate, style: TextStyle(color: AppColor.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
+class _TodoTile extends StatelessWidget {
+  const _TodoTile({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
 
-  Widget _buildActionCard(BuildContext context, String title, IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+  final IconData icon;
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, color: AppColor.primary),
+        title: Text(label),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: AppColor.primary, size: 21),
+            Badge(
+              isLabelVisible: count > 0,
+              backgroundColor: AppColor.primary,
+              label: Text('$count'),
+              child: count > 0
+                  ? const SizedBox(width: 8)
+                  : const Icon(Icons.check_rounded, color: AppColor.success),
             ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-            const Icon(Icons.chevron_right, size: 18, color: AppColor.textMuted),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(color: AppColor.textSecondary, fontSize: 12)),
           ],
         ),
       ),
     );
   }
-
 }

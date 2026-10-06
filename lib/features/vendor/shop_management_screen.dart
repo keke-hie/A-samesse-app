@@ -3,8 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
-import '../../../features/vendor/add_product_screen.dart';
-import '../../../features/customer/home/product_detail_screen.dart';
+import 'product_form_screen.dart';
 
 class ShopManagementScreen extends StatefulWidget {
   final bool productsOnly;
@@ -821,7 +820,7 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const AddProductScreen(),
+                                  builder: (_) => const ProductFormScreen(),
                                 ),
                               );
                               _chargerInfosBoutique();
@@ -903,7 +902,7 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const AddProductScreen(),
+                                  builder: (_) => const ProductFormScreen(),
                                 ),
                               );
                               _chargerInfosBoutique();
@@ -949,17 +948,15 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
 
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            debugPrint(
-                              "CLIC SUR LE PRODUIT : ${produit['nom_produit']}",
-                            );
-                            Navigator.push(
+                          onTap: () async {
+                            final changed = await Navigator.push<bool>(
                               context,
                               MaterialPageRoute(
                                 builder: (_) =>
-                                    ProductDetailScreen(product: produit),
+                                    ProductFormScreen(product: produit),
                               ),
                             );
+                            if (changed == true) _chargerInfosBoutique();
                           },
                           child: Container(
                             decoration: BoxDecoration(

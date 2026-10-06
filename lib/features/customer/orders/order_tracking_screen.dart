@@ -53,6 +53,16 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     }
   }
 
+  Future<void> _openDispute(String orderId) async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DisputeDialog(orderId: orderId, orderService: _orderService),
+    );
+    if (sent == true && mounted) {
+      _showMessage('Signalement envoyé. Un administrateur va l’examiner.');
+    }
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -116,6 +126,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             _detailRow('Date', formatDate(order['date_commande'], withTime: true)),
             if (order['adresse_livraison'] != null)
               _detailRow('Adresse', order['adresse_livraison'].toString()),
+            if (status != OrderStatus.awaitingPayment &&
+                status != OrderStatus.cancelled) ...[
+              const SizedBox(height: 20),
+              TextButton.icon(
+                onPressed: () => _openDispute(orderId),
+                icon: const Icon(Icons.report_problem_outlined),
+                label: const Text('Signaler un problème'),
+              ),
+            ],
             if (status == OrderStatus.awaitingPayment) ...[
               const SizedBox(height: 20),
               TextButton.icon(
@@ -555,6 +574,107 @@ class _OrderLineTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DisputeDialog extends StatefulWidget {
+  const _DisputeDialog({required this.orderId, required this.orderService});
+
+  final String orderId;
+  final OrderService orderService;
+
+  @override
+  State<_DisputeDialog> createState() => _DisputeDialogState();
+}
+
+class _DisputeDialogState extends State<_DisputeDialog> {
+  static const _reasons = [
+    'Article non reçu',
+    'Article endommagé',
+    'Article non conforme',
+    'Problème de paiement',
+    'Autre',
+  ];
+
+  final _descriptionController = TextEditingController();
+  String _reason = _reasons.first;
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final description = _descriptionController.text.trim();
+    if (description.isEmpty) {
+      setState(() => _error = 'Décris le problème en quelques mots.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      await widget.orderService.openDispute(
+        orderId: widget.orderId,
+        reason: _reason,
+        description: description,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _error = friendlyError(error);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Signaler un problème'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _reason,
+              decoration: const InputDecoration(labelText: 'Motif'),
+              items: [
+                for (final reason in _reasons)
+                  DropdownMenuItem(value: reason, child: Text(reason)),
+              ],
+              onChanged: (value) => setState(() => _reason = value ?? _reason),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Description',
+                errorText: _error,
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _sending ? null : () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: _sending ? null : _send,
+          child: const Text('Envoyer'),
+        ),
+      ],
     );
   }
 }

@@ -225,7 +225,7 @@ class _VendorStorefrontScreenState extends State<VendorStorefrontScreen> {
                             clipBehavior: Clip.antiAlias,
                             child: InkWell(
                               onTap: () => context.push(
-                                '/home/product-detail',
+                                '/home/product/${product['id_produit']}',
                                 extra: product,
                               ),
                               child: Column(

@@ -21,7 +21,6 @@ import '../../features/vendor/vendor_dashboard_screen.dart';
 import '../../features/delivery/delivery_map_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/admin_management_screen.dart';
-import '../../features/admin/analytics_screen.dart';
 import '../../navigation/main_wrapper.dart';
 import '../../navigation/vendor_wrapper.dart';
 import '../../navigation/delivery_wrapper.dart';
@@ -63,9 +62,10 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const HomeScreen(),
           routes: [
             GoRoute(
-              path: 'product-detail',
+              path: 'product/:productId',
               builder: (context, state) => ProductDetailScreen(
-                product: state.extra as Map<String, dynamic>?,
+                productId: state.pathParameters['productId']!,
+                initialProduct: state.extra as Map<String, dynamic>?,
               ),
             ),
           ],
@@ -76,8 +76,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/cart',
-          builder: (context, state) =>
-              CartScreen(extraData: state.extra as Map<String, dynamic>?),
+          builder: (context, state) => const CartScreen(),
         ),
         GoRoute(
           path: '/orders',
@@ -190,10 +189,6 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/admin/dashboard',
           builder: (context, state) => const AdminDashboardScreen(),
-        ),
-        GoRoute(
-          path: '/admin/analytics',
-          builder: (context, state) => const AnalyticsScreen(),
         ),
         GoRoute(
           path: '/admin/management',
