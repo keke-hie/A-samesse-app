@@ -19,15 +19,25 @@ l'accès aux données est contrôlé par les règles RLS).
 
 ### Base de données
 
-Les migrations de `supabase/migrations/` s'appliquent **dans l'ordre** sur un
-schéma existant (tables `utilisateurs`, `produits`, `commandes`, `paniers`,
-`lignes_*`, `livraisons`, `boutiques`, `ventes_ephemeres`…) :
+La base a été construite à la main dans le SQL Editor (pas de suivi des
+migrations) : **ne pas utiliser `supabase db push`**. Exécuter dans le SQL
+Editor, dans cet ordre, ces fichiers de `supabase/migrations/` (tous
+réexécutables sans risque) :
 
-```bash
-supabase db push
-supabase functions deploy enhance-product-image generate-marketing-copy
-```
+1. `20260930091000_create_litiges.sql`
+2. `20260930094000_preserve_product_original_images.sql`
+3. `20261001090000_add_product_options.sql`
+4. `20261001093000_delivery_otp_confirmation.sql`
+5. `20261002090000_ephemeral_sales_flexibility.sql`
+6. `20261002091000_add_product_vertical_image.sql`
+7. `20261006090000_secure_checkout_flow.sql`
+8. `20261006100000_account_validation_and_documents.sql`
+9. `20261006110000_realtime_tables.sql`
+10. `20261006120000_simulated_payment.sql`
 
+Les autres fichiers du dossier sont déjà appliqués.
+
+Fonctions IA : `supabase functions deploy enhance-product-image generate-marketing-copy`.
 Les edge functions ont besoin des secrets `GEMINI_API_KEY` et
 `SUPABASE_SERVICE_ROLE_KEY`.
 
