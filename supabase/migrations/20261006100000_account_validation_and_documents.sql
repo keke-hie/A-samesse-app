@@ -42,16 +42,24 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- Valeurs imposées par la contrainte utilisateurs_role_check.
+  -- handle_new_auth_user écrit le rôle en minuscules alors que la contrainte
+  -- utilisateurs_role_check exige 'Acheteur' / 'Vendeur' / 'Livreur' / 'Admin' :
+  -- on remet la majuscule ici, sinon l'inscription échoue.
+  new.role := case lower(trim(coalesce(new.role, '')))
+    when 'vendeur' then 'Vendeur'
+    when 'livreur' then 'Livreur'
+    when 'admin' then 'Admin'
+    else 'Acheteur'
+  end;
+
+  -- Depuis l'éditeur SQL, on laisse l'administrateur décider du rôle et du statut.
   if public.is_privileged_session() then
     return new;
   end if;
 
-  new.role := case lower(trim(coalesce(new.role, '')))
-    when 'vendeur' then 'Vendeur'
-    when 'livreur' then 'Livreur'
-    else 'Acheteur'
-  end;
+  if new.role = 'Admin' then
+    new.role := 'Acheteur';
+  end if;
   new.statut_compte := case when new.role = 'Acheteur' then 'actif' else 'en_attente' end;
   new.motif_refus := null;
   return new;
