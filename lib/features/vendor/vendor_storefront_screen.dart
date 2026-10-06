@@ -61,7 +61,8 @@ class _VendorStorefrontScreenState extends State<VendorStorefrontScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
         ),
         title: Text(_shop?['nom_boutique']?.toString() ?? 'Boutique'),
         actions: [
@@ -89,7 +90,10 @@ class _VendorStorefrontScreenState extends State<VendorStorefrontScreen> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                     sliver: SliverToBoxAdapter(
-                      child: _ShopHeader(shop: _shop!, productCount: _products.length),
+                      child: _ShopHeader(
+                        shop: _shop!,
+                        productCount: _products.length,
+                      ),
                     ),
                   ),
                   if (_products.isEmpty)
@@ -105,10 +109,14 @@ class _VendorStorefrontScreenState extends State<VendorStorefrontScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       sliver: SliverLayoutBuilder(
                         builder: (context, constraints) => SliverGrid(
-                          gridDelegate: productGridDelegate(constraints.crossAxisExtent),
+                          gridDelegate: productGridDelegate(
+                            constraints.crossAxisExtent,
+                          ),
                           delegate: SliverChildBuilderDelegate(
-                            (context, index) =>
-                                ProductCard(product: _products[index], promos: _promos),
+                            (context, index) => ProductCard(
+                              product: _products[index],
+                              promos: _promos,
+                            ),
                             childCount: _products.length,
                           ),
                         ),
@@ -141,9 +149,15 @@ class _ShopHeader extends StatelessWidget {
             CircleAvatar(
               radius: 34,
               backgroundColor: AppColor.primarySoft,
-              backgroundImage: logoUrl != null && logoUrl.isNotEmpty ? NetworkImage(logoUrl) : null,
+              backgroundImage: logoUrl != null && logoUrl.isNotEmpty
+                  ? NetworkImage(logoUrl)
+                  : null,
               child: logoUrl == null || logoUrl.isEmpty
-                  ? const Icon(Icons.storefront_outlined, color: AppColor.primary, size: 30)
+                  ? const Icon(
+                      Icons.storefront_outlined,
+                      color: AppColor.primary,
+                      size: 30,
+                    )
                   : null,
             ),
             const SizedBox(width: 14),
@@ -163,12 +177,19 @@ class _ShopHeader extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.place_outlined, size: 16, color: AppColor.textSecondary),
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 16,
+                          color: AppColor.textSecondary,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             address,
-                            style: const TextStyle(color: AppColor.textSecondary, fontSize: 13),
+                            style: const TextStyle(
+                              color: AppColor.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -176,7 +197,11 @@ class _ShopHeader extends StatelessWidget {
                   ],
                   if (description.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(description, maxLines: 4, overflow: TextOverflow.ellipsis),
+                    Text(
+                      description,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ],
               ),

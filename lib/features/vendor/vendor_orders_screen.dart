@@ -155,7 +155,10 @@ class _VendorOrderCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               formatDate(order.date, withTime: true),
-              style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColor.textSecondary,
+              ),
             ),
             const Divider(height: 22),
             for (final line in order.lines)
@@ -190,7 +193,10 @@ class _VendorOrderCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Livraison : ${order.address}',
-                style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColor.textSecondary,
+                ),
               ),
             ],
             if (status == OrderStatus.awaitingPayment) ...[

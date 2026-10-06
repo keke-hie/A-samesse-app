@@ -233,6 +233,72 @@ class VendorService {
     }
   }
 
+  /// Crée la boutique du vendeur si elle n'existe pas encore, sinon la met à jour.
+  Future<void> saveShop({
+    required String name,
+    required String description,
+    required String address,
+  }) async {
+    final values = {
+      'nom_boutique': name,
+      'description': description,
+      'adresse_physique': address,
+    };
+    final shop = await fetchMyShop();
+    if (shop == null) {
+      await _supabase.from('boutiques').insert({
+        ...values,
+        'id_vendeur': _userId,
+      });
+    } else {
+      await _supabase
+          .from('boutiques')
+          .update(values)
+          .eq('id_boutique', shop['id_boutique']);
+    }
+  }
+
+  Future<String> uploadShopLogo(XFile file, String shopId) async {
+    final storage = _supabase.storage.from('images');
+    final extension = file.name.split('.').last.toLowerCase();
+    final path =
+        'shops/${_userId}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await storage.uploadBinary(
+      path,
+      await file.readAsBytes(),
+      fileOptions: FileOptions(
+        contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+      ),
+    );
+    final url = storage.getPublicUrl(path);
+    await _supabase
+        .from('boutiques')
+        .update({'logo_url': url})
+        .eq('id_boutique', shopId);
+    return url;
+  }
+
+  /// Nouvelle retouche Studio IA d'un produit existant, ou restauration de
+  /// la photo d'origine. Renvoie la nouvelle URL de l'image catalogue.
+  Future<String> retouchProductPhoto(
+    String productId, {
+    required bool restore,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'enhance-product-image',
+      body: {'productId': productId, 'restoreOriginal': restore},
+    );
+    final data = response.data;
+    if (data is! Map || data['image_url'] is! String) {
+      throw Exception(
+        data is Map && data['error'] is String
+            ? data['error']
+            : 'Opération image impossible.',
+      );
+    }
+    return data['image_url'] as String;
+  }
+
   /// Commandes contenant au moins un produit du vendeur, avec uniquement ses lignes.
   Future<List<VendorOrder>> fetchOrders() async {
     final products = await _supabase

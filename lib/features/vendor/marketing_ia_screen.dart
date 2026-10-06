@@ -3,20 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/constants/app_color.dart';
-import '../../../core/widgets/primary_button.dart';
+import '../../core/constants/app_color.dart';
+import '../../core/services/marketing_service.dart';
+import '../../core/services/vendor_service.dart';
+import '../../core/utils/error_message.dart';
+import '../../core/widgets/primary_button.dart';
 
-class MarketingiaScreen extends StatefulWidget {
+class MarketingAiScreen extends StatefulWidget {
   final String? initialPlatform;
 
-  const MarketingiaScreen({super.key, this.initialPlatform});
+  const MarketingAiScreen({super.key, this.initialPlatform});
 
   @override
-  State<MarketingiaScreen> createState() => _MarketingiaScreenState();
+  State<MarketingAiScreen> createState() => _MarketingAiScreenState();
 }
 
-class _MarketingiaScreenState extends State<MarketingiaScreen> {
+class _MarketingAiScreenState extends State<MarketingAiScreen> {
+  final _vendorService = VendorService();
+  final _marketingService = MarketingService();
   final Set<String> _selectedPlatforms = {'instagram'};
   final _productNameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -101,49 +105,27 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
 
   Future<void> _loadVendorProducts() async {
     try {
-      final supabase = Supabase.instance.client;
-      final vendorId = supabase.auth.currentUser?.id;
-      if (vendorId == null) return;
-
-      final response = await supabase
-          .from('produits')
-          .select('id_produit, nom_produit, description, prix, image_url')
-          .eq('id_vendeur', vendorId)
-          .order('date_ajout', ascending: false);
-
+      final products = await _vendorService.fetchMyProducts();
       if (!mounted) return;
       setState(() {
-        _vendorProducts = List<Map<String, dynamic>>.from(response);
+        _vendorProducts = products;
         _isLoadingProducts = false;
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingProducts = false);
+      if (mounted) setState(() => _isLoadingProducts = false);
     }
   }
 
   Future<void> _loadCampaigns() async {
     try {
-      final supabase = Supabase.instance.client;
-      final vendorId = supabase.auth.currentUser?.id;
-      if (vendorId == null) return;
-
-      final response = await supabase
-          .from('campagnes')
-          .select(
-            'id_campagne, nom_campagne, plateformes, contenus, statut, date_creation',
-          )
-          .eq('id_vendeur', vendorId)
-          .order('date_creation', ascending: false);
-
+      final campaigns = await _marketingService.fetchCampaigns();
       if (!mounted) return;
       setState(() {
-        _savedCampaigns = List<Map<String, dynamic>>.from(response);
+        _savedCampaigns = campaigns;
         _isLoadingCampaigns = false;
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingCampaigns = false);
+      if (mounted) setState(() => _isLoadingCampaigns = false);
     }
   }
 
@@ -179,25 +161,7 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
       return product['image_url']?.toString();
     }
 
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null)
-      throw Exception('Connectez-vous pour importer une photo.');
-    final image = _campaignImage!;
-    final extension = image.name.split('.').last.toLowerCase();
-    final mimeType = switch (extension) {
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => 'image/jpeg',
-    };
-    final path =
-        'marketing-input/${user.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
-    final storage = Supabase.instance.client.storage.from('images');
-    await storage.uploadBinary(
-      path,
-      await image.readAsBytes(),
-      fileOptions: FileOptions(contentType: mimeType, upsert: true),
-    );
-    return storage.getPublicUrl(path);
+    return _marketingService.uploadReferenceImage(_campaignImage!);
   }
 
   Future<void> _shareGeneratedContent(Map<String, dynamic> content) async {
@@ -227,9 +191,9 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Partage indisponible : $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(error))));
       }
     }
   }
@@ -256,42 +220,24 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
 
     try {
       final productImageUrl = await _uploadCampaignImage();
-      final response = await Supabase.instance.client.functions.invoke(
-        'generate-marketing-copy',
-        body: {
-          'productName': _productNameController.text.trim(),
-          'description': _descriptionController.text.trim(),
-          'price': _priceController.text.trim(),
-          'platforms': _selectedPlatforms.toList(),
-          'productImageUrl': productImageUrl,
-          'includeVisuals': _generateVisuals,
-        },
+      final contents = await _marketingService.generate(
+        productName: _productNameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        price: _priceController.text.trim(),
+        platforms: _selectedPlatforms.toList(),
+        productImageUrl: productImageUrl,
+        includeVisuals: _generateVisuals,
       );
-
-      final data = response.data;
-      if (response.status < 200 || response.status >= 300 || data is! Map) {
-        throw Exception(
-          data is Map
-              ? data['error'] ?? 'Réponse IA invalide.'
-              : 'Réponse IA invalide.',
-        );
-      }
-
-      final contents = data['contents'];
-      if (contents is! List)
-        throw Exception('La réponse IA ne contient aucun contenu.');
 
       if (mounted) {
         setState(() {
-          _generatedContents = contents
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList();
+          _generatedContents = contents;
         });
       }
     } catch (error) {
-      if (mounted)
-        setState(() => _generationError = 'Génération impossible : $error');
+      if (mounted) {
+        setState(() => _generationError = friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -299,25 +245,14 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
 
   Future<void> _saveCampaign() async {
     if (_generatedContents.isEmpty || _isSavingCampaign) return;
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
-      setState(
-        () =>
-            _generationError = 'Connecte-toi pour enregistrer cette campagne.',
-      );
-      return;
-    }
-
     setState(() => _isSavingCampaign = true);
     try {
-      await Supabase.instance.client.from('campagnes').insert({
-        'id_vendeur': user.id,
-        'id_produit': _selectedProductId,
-        'nom_campagne': _productNameController.text.trim(),
-        'plateformes': _selectedPlatforms.toList(),
-        'contenus': _generatedContents,
-        'statut': 'brouillon',
-      });
+      await _marketingService.saveDraft(
+        name: _productNameController.text.trim(),
+        platforms: _selectedPlatforms.toList(),
+        contents: _generatedContents,
+        productId: _selectedProductId,
+      );
       await _loadCampaigns();
 
       if (!mounted) return;
@@ -326,8 +261,9 @@ class _MarketingiaScreenState extends State<MarketingiaScreen> {
         const SnackBar(content: Text('Brouillon de campagne enregistré.')),
       );
     } catch (error) {
-      if (mounted)
-        setState(() => _generationError = 'Enregistrement impossible : $error');
+      if (mounted) {
+        setState(() => _generationError = friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _isSavingCampaign = false);
     }

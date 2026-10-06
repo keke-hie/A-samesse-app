@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/services/product_service.dart';
 import '../../../../core/services/vendor_service.dart';
 import '../../../../core/utils/error_message.dart';
 import '../../../../core/utils/formatters.dart';
@@ -38,8 +38,8 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
-  late final Future<List<Map<String, dynamic>>> _productsFuture = VendorService()
-      .fetchMyProducts();
+  late final Future<List<Map<String, dynamic>>> _productsFuture =
+      VendorService().fetchMyProducts();
 
   Map<String, dynamic>? _product;
   String _saleType = 'Vente Flash';
@@ -73,7 +73,13 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
     );
     if (time == null) return;
     setState(
-      () => _endDate = DateTime(date.year, date.month, date.day, time.hour, time.minute),
+      () => _endDate = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      ),
     );
   }
 
@@ -91,15 +97,13 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
 
     setState(() => _isSaving = true);
     try {
-      await Supabase.instance.client.from('ventes_ephemeres').insert({
-        'nom_vente': _nameController.text.trim(),
-        'id_produit': _product!['id_produit'],
-        'prix_promo': num.parse(_priceController.text.trim()),
-        'type_vente': _saleType,
-        'date_debut': now.toUtc().toIso8601String(),
-        'date_fin': _endDate.toUtc().toIso8601String(),
-        'statut': 'actif',
-      });
+      await ProductService().createDeal(
+        name: _nameController.text.trim(),
+        productId: _product!['id_produit'].toString(),
+        promoPrice: num.parse(_priceController.text.trim()),
+        saleType: _saleType,
+        endsAt: _endDate,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
@@ -110,7 +114,9 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -165,16 +171,24 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
                       labelText: 'Nom de la vente',
                       hintText: 'Ex. : Vide-dressing de marque',
                     ),
-                    validator: (value) =>
-                        (value?.trim().isEmpty ?? true) ? 'Donne un nom à la vente' : null,
+                    validator: (value) => (value?.trim().isEmpty ?? true)
+                        ? 'Donne un nom à la vente'
+                        : null,
                   ),
                   SegmentedButton<String>(
                     segments: const [
-                      ButtonSegment(value: 'Vente Flash', label: Text('Vente flash')),
-                      ButtonSegment(value: 'Vide Dressing', label: Text('Vide-dressing')),
+                      ButtonSegment(
+                        value: 'Vente Flash',
+                        label: Text('Vente flash'),
+                      ),
+                      ButtonSegment(
+                        value: 'Vide Dressing',
+                        label: Text('Vide-dressing'),
+                      ),
                     ],
                     selected: {_saleType},
-                    onSelectionChanged: (value) => setState(() => _saleType = value.first),
+                    onSelectionChanged: (value) =>
+                        setState(() => _saleType = value.first),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Map<String, dynamic>>(
@@ -192,7 +206,8 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
                         ),
                     ],
                     onChanged: (value) => setState(() => _product = value),
-                    validator: (value) => value == null ? 'Choisis un produit' : null,
+                    validator: (value) =>
+                        value == null ? 'Choisis un produit' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -231,7 +246,9 @@ class _CreateDealSheetState extends State<_CreateDealSheet> {
                   OutlinedButton.icon(
                     onPressed: _pickEndDate,
                     icon: const Icon(Icons.event_outlined),
-                    label: Text('Fin : ${formatDate(_endDate, withTime: true)}'),
+                    label: Text(
+                      'Fin : ${formatDate(_endDate, withTime: true)}',
+                    ),
                   ),
                   const SizedBox(height: 20),
                   PrimaryButton(

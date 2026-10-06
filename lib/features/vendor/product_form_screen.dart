@@ -33,15 +33,30 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _vendorService = VendorService();
-  late final _nameController = TextEditingController(text: _initial('nom_produit'));
-  late final _descriptionController = TextEditingController(text: _initial('description'));
-  late final _priceController = TextEditingController(text: _initialNumber('prix'));
-  late final _stockController = TextEditingController(text: _initialNumber('stock'));
-  late final _colorsController = TextEditingController(text: _initialList('couleurs'));
-  late final _sizesController = TextEditingController(text: _initialList('tailles'));
-  late final _featuresController = TextEditingController(text: _initialList('caracteristiques'));
+  late final _nameController = TextEditingController(
+    text: _initial('nom_produit'),
+  );
+  late final _descriptionController = TextEditingController(
+    text: _initial('description'),
+  );
+  late final _priceController = TextEditingController(
+    text: _initialNumber('prix'),
+  );
+  late final _stockController = TextEditingController(
+    text: _initialNumber('stock'),
+  );
+  late final _colorsController = TextEditingController(
+    text: _initialList('couleurs'),
+  );
+  late final _sizesController = TextEditingController(
+    text: _initialList('tailles'),
+  );
+  late final _featuresController = TextEditingController(
+    text: _initialList('caracteristiques'),
+  );
 
-  late String? _category = productCategories.contains(widget.product?['categorie'])
+  late String? _category =
+      productCategories.contains(widget.product?['categorie'])
       ? widget.product!['categorie'] as String
       : null;
   XFile? _photo;
@@ -179,7 +194,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     if (confirmed != true) return;
     setState(() => _isSaving = true);
     try {
-      await _vendorService.deleteProduct(widget.product!['id_produit'].toString());
+      await _vendorService.deleteProduct(
+        widget.product!['id_produit'].toString(),
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
@@ -190,7 +207,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _required(String? value) =>
@@ -217,7 +236,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           children: [
             _PhotoPicker(
               photoBytes: _photoBytes,
-              currentUrl: _isEditing ? ProductImage.urlOf(widget.product!) : null,
+              currentUrl: _isEditing
+                  ? ProductImage.urlOf(widget.product!)
+                  : null,
               onPick: _isSaving ? null : _pickPhoto,
             ),
             if (_photo != null) ...[
@@ -238,9 +259,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   decoration: const InputDecoration(labelText: 'Mise en scène'),
                   items: [
                     for (final entry in _scenes.entries)
-                      DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                      DropdownMenuItem(
+                        value: entry.key,
+                        child: Text(entry.value),
+                      ),
                   ],
-                  onChanged: (value) => setState(() => _scene = value ?? _scene),
+                  onChanged: (value) =>
+                      setState(() => _scene = value ?? _scene),
                 ),
             ],
             const SizedBox(height: 16),
@@ -259,7 +284,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   DropdownMenuItem(value: category, child: Text(category)),
               ],
               onChanged: (value) => setState(() => _category = value),
-              validator: (value) => value == null ? 'Choisis une catégorie' : null,
+              validator: (value) =>
+                  value == null ? 'Choisis une catégorie' : null,
             ),
             const SizedBox(height: 12),
             Row(
@@ -275,7 +301,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     ),
                     validator: (value) {
                       final price = num.tryParse(value?.trim() ?? '');
-                      return price == null || price <= 0 ? 'Prix invalide' : null;
+                      return price == null || price <= 0
+                          ? 'Prix invalide'
+                          : null;
                     },
                   ),
                 ),
@@ -287,7 +315,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     decoration: const InputDecoration(labelText: 'Stock'),
                     validator: (value) {
                       final stock = int.tryParse(value?.trim() ?? '');
-                      return stock == null || stock < 0 ? 'Stock invalide' : null;
+                      return stock == null || stock < 0
+                          ? 'Stock invalide'
+                          : null;
                     },
                   ),
                 ),
@@ -343,7 +373,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 }
 
 class _PhotoPicker extends StatelessWidget {
-  const _PhotoPicker({required this.photoBytes, required this.currentUrl, required this.onPick});
+  const _PhotoPicker({
+    required this.photoBytes,
+    required this.currentUrl,
+    required this.onPick,
+  });
 
   final Uint8List? photoBytes;
   final String? currentUrl;
@@ -385,7 +419,11 @@ class _PhotoPicker extends StatelessWidget {
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_a_photo_outlined, size: 36, color: AppColor.primary),
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 36,
+                    color: AppColor.primary,
+                  ),
                   SizedBox(height: 8),
                   Text('Ajouter une photo du produit'),
                 ],

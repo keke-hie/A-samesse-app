@@ -29,7 +29,10 @@ class AuthScreenShell extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 480),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final headerHeight = (constraints.maxHeight * 0.26).clamp(150.0, 210.0);
+                final headerHeight = (constraints.maxHeight * 0.26).clamp(
+                  150.0,
+                  210.0,
+                );
                 return Column(
                   children: [
                     SizedBox(
@@ -38,7 +41,8 @@ class AuthScreenShell extends StatelessWidget {
                       child: Stack(
                         children: [
                           const Positioned.fill(child: _BrandHeader()),
-                          if (leading != null) Positioned(top: 4, left: 4, child: leading!),
+                          if (leading != null)
+                            Positioned(top: 4, left: 4, child: leading!),
                         ],
                       ),
                     ),
@@ -47,10 +51,13 @@ class AuthScreenShell extends StatelessWidget {
                         width: double.infinity,
                         decoration: const BoxDecoration(
                           color: AppColor.surface,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(28),
+                          ),
                         ),
                         child: SingleChildScrollView(
-                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           padding: EdgeInsets.fromLTRB(
                             24,
                             28,
@@ -63,13 +70,17 @@ class AuthScreenShell extends StatelessWidget {
                               Text(
                                 title,
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 subtitle,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: AppColor.textSecondary),
+                                style: const TextStyle(
+                                  color: AppColor.textSecondary,
+                                ),
                               ),
                               const SizedBox(height: 24),
                               child,
@@ -190,10 +201,14 @@ class _AuthTextFieldState extends State<AuthTextField> {
         labelText: widget.hintText,
         suffixIcon: widget.obscureText
             ? IconButton(
-                tooltip: _isObscured ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+                tooltip: _isObscured
+                    ? 'Afficher le mot de passe'
+                    : 'Masquer le mot de passe',
                 onPressed: () => setState(() => _isObscured = !_isObscured),
                 icon: Icon(
-                  _isObscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  _isObscured
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                   color: AppColor.textSecondary,
                 ),
               )

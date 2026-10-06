@@ -36,13 +36,16 @@ class OrderService {
   Future<void> cancelOrder(String orderId) =>
       _supabase.rpc('cancel_order', params: {'p_id_commande': orderId});
 
-  Future<void> confirmPayment(String orderId) =>
-      _supabase.rpc('admin_confirm_payment', params: {'p_id_commande': orderId});
-
-  Future<void> vendorAdvance(String orderId, String nextStatus) => _supabase.rpc(
-    'vendor_advance_order',
-    params: {'p_id_commande': orderId, 'p_statut': nextStatus},
+  Future<void> confirmPayment(String orderId) => _supabase.rpc(
+    'admin_confirm_payment',
+    params: {'p_id_commande': orderId},
   );
+
+  Future<void> vendorAdvance(String orderId, String nextStatus) =>
+      _supabase.rpc(
+        'vendor_advance_order',
+        params: {'p_id_commande': orderId, 'p_statut': nextStatus},
+      );
 
   Future<List<Map<String, dynamic>>> adminListOrders() async {
     final response = await _supabase.rpc('admin_list_orders');

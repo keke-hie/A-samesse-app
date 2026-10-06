@@ -58,7 +58,9 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
           return const Center(child: CircularProgressIndicator());
         }
         final users = snapshot.data!
-            .where((user) => !_onlyPending || user['statut_compte'] == 'en_attente')
+            .where(
+              (user) => !_onlyPending || user['statut_compte'] == 'en_attente',
+            )
             .toList();
 
         return RefreshIndicator(
@@ -189,7 +191,9 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
     final reason = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(status == 'refuse' ? 'Motif du refus' : 'Motif de la suspension'),
+        title: Text(
+          status == 'refuse' ? 'Motif du refus' : 'Motif de la suspension',
+        ),
         content: TextField(
           controller: controller,
           maxLines: 3,
@@ -217,7 +221,9 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -250,12 +256,17 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
           ],
           if (isPro) ...[
             const SizedBox(height: 20),
-            Text('Pièces justificatives', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Pièces justificatives',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             FutureBuilder<Map<DocumentType, Map<String, dynamic>>>(
               future: _documentsFuture,
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Text(friendlyError(snapshot.error!));
+                if (snapshot.hasError) {
+                  return Text(friendlyError(snapshot.error!));
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -273,9 +284,12 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.description_outlined),
                         title: Text(entry.key.label),
-                        subtitle: Text('Envoyée le ${formatDate(entry.value['date_envoi'])}'),
+                        subtitle: Text(
+                          'Envoyée le ${formatDate(entry.value['date_envoi'])}',
+                        ),
                         trailing: const Icon(Icons.open_in_new_rounded),
-                        onTap: () => _openDocument(entry.value['chemin'].toString()),
+                        onTap: () =>
+                            _openDocument(entry.value['chemin'].toString()),
                       ),
                   ],
                 );
@@ -294,7 +308,11 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
                   FilledButton.icon(
                     onPressed: () => _setStatus('actif'),
                     icon: const Icon(Icons.check_rounded),
-                    label: Text(status == 'en_attente' ? 'Valider le compte' : 'Réactiver'),
+                    label: Text(
+                      status == 'en_attente'
+                          ? 'Valider le compte'
+                          : 'Réactiver',
+                    ),
                   ),
                 if (status == 'en_attente')
                   OutlinedButton(
@@ -303,7 +321,9 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
                   ),
                 if (status == 'actif')
                   OutlinedButton(
-                    style: OutlinedButton.styleFrom(foregroundColor: AppColor.danger),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColor.danger,
+                    ),
                     onPressed: () => _setStatus('suspendu'),
                     child: const Text('Suspendre'),
                   ),

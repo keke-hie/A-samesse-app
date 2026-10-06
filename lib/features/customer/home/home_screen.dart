@@ -90,17 +90,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final category = product['categorie']?.toString() ?? '';
       if (_category != _allCategories && category != _category) return false;
       if (query.isEmpty) return true;
-      return [product['nom_produit'], product['description'], category]
-          .whereType<Object>()
-          .join(' ')
-          .toLowerCase()
-          .contains(query);
+      return [
+        product['nom_produit'],
+        product['description'],
+        category,
+      ].whereType<Object>().join(' ').toLowerCase().contains(query);
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final firstName = SessionService.instance.displayName?.trim().split(' ').first;
+    final firstName = SessionService.instance.displayName
+        ?.trim()
+        .split(' ')
+        .first;
     final products = _visibleProducts;
 
     return Scaffold(
@@ -139,7 +142,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const Text(
                                   'Qu’est-ce qui vous ferait plaisir ?',
-                                  style: TextStyle(color: AppColor.textSecondary),
+                                  style: TextStyle(
+                                    color: AppColor.textSecondary,
+                                  ),
                                 ),
                               ],
                             ),
@@ -175,7 +180,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               },
                             ),
                         ],
-                        onChanged: (value) => setState(() => _query = value.trim()),
+                        onChanged: (value) =>
+                            setState(() => _query = value.trim()),
                       ),
                     ),
                   ),
@@ -192,7 +198,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           return ChoiceChip(
                             label: Text(category),
                             selected: category == _category,
-                            onSelected: (_) => setState(() => _category = category),
+                            onSelected: (_) =>
+                                setState(() => _category = category),
                           );
                         },
                       ),
@@ -205,7 +212,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              _category == _allCategories ? 'Tous les produits' : _category,
+                              _category == _allCategories
+                                  ? 'Tous les produits'
+                                  : _category,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
@@ -252,7 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
                       sliver: SliverLayoutBuilder(
                         builder: (context, constraints) => SliverGrid(
-                          gridDelegate: productGridDelegate(constraints.crossAxisExtent),
+                          gridDelegate: productGridDelegate(
+                            constraints.crossAxisExtent,
+                          ),
                           delegate: SliverChildBuilderDelegate(
                             (context, index) => ProductCard(
                               product: products[index],
@@ -300,7 +311,11 @@ class _CartPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 18),
+              const Icon(
+                Icons.shopping_bag_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${summary.itemCount} article${summary.itemCount > 1 ? 's' : ''} · ${formatPrice(summary.total)}',

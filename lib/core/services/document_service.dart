@@ -73,14 +73,15 @@ class DocumentService {
         .eq('id_utilisateur', id);
     return {
       for (final row in rows)
-        if (DocumentType.parse(row['type_piece']?.toString()) case final type?)
-          type: row,
+        ?DocumentType.parse(row['type_piece']?.toString()): row,
     };
   }
 
   Future<void> upload(DocumentType type, XFile file) async {
     final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) throw Exception('Connecte-toi pour envoyer tes pièces.');
+    if (userId == null) {
+      throw Exception('Connecte-toi pour envoyer tes pièces.');
+    }
 
     final extension = file.name.split('.').last.toLowerCase();
     final contentType = switch (extension) {

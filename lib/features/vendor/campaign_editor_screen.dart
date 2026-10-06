@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/marketing_service.dart';
+import '../../core/utils/error_message.dart';
 import '../../../core/constants/app_color.dart';
 
 class CampaignEditorScreen extends StatefulWidget {
@@ -15,7 +16,7 @@ class CampaignEditorScreen extends StatefulWidget {
 }
 
 class _CampaignEditorScreenState extends State<CampaignEditorScreen> {
-  final _supabase = Supabase.instance.client;
+  final _marketingService = MarketingService();
   final _captionController = TextEditingController();
   final _directionController = TextEditingController();
   bool _isGenerating = false;
@@ -50,32 +51,16 @@ class _CampaignEditorScreenState extends State<CampaignEditorScreen> {
       _error = null;
     });
     try {
-      final response = await _supabase.functions.invoke(
-        'generate-marketing-copy',
-        body: {
-          'productName': _productName,
-          'description': _content['description']?.toString() ?? '',
-          'price': _content['price']?.toString() ?? '',
-          'platforms': [_platform],
-          'creativeDirection':
-              '$direction\nTexte actuel à retravailler : ${_captionController.text.trim()}',
-          'productImageUrl': _content['image_url']?.toString(),
-          'includeVisuals': false,
-        },
+      final contents = await _marketingService.generate(
+        productName: _productName,
+        description: _content['description']?.toString() ?? '',
+        price: _content['price']?.toString() ?? '',
+        platforms: [_platform],
+        creativeDirection:
+            '$direction\nTexte actuel à retravailler : ${_captionController.text.trim()}',
+        productImageUrl: _content['image_url']?.toString(),
       );
-      final data = response.data;
-      final contents = data is Map ? data['contents'] : null;
-      if (response.status < 200 ||
-          response.status >= 300 ||
-          contents is! List ||
-          contents.isEmpty) {
-        throw Exception(
-          data is Map
-              ? data['error'] ?? 'Réponse IA invalide.'
-              : 'Réponse IA invalide.',
-        );
-      }
-      final generated = Map<String, dynamic>.from(contents.first as Map);
+      final generated = contents.first;
       if (!mounted) return;
       setState(() {
         _captionController.text =
@@ -85,8 +70,9 @@ class _CampaignEditorScreenState extends State<CampaignEditorScreen> {
             generated['visual_prompt'] ?? _content['visual_prompt'];
       });
     } catch (error) {
-      if (mounted)
-        setState(() => _error = 'La modification IA a échoué : $error');
+      if (mounted) {
+        setState(() => _error = friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -99,31 +85,25 @@ class _CampaignEditorScreenState extends State<CampaignEditorScreen> {
   };
 
   Future<void> _saveCampaign() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
-      setState(() => _error = 'Connectez-vous pour enregistrer ce brouillon.');
-      return;
-    }
     setState(() {
       _isSaving = true;
       _error = null;
     });
     try {
-      await _supabase.from('campagnes').insert({
-        'id_vendeur': user.id,
-        'id_produit': _content['id_produit'],
-        'nom_campagne': _productName,
-        'plateformes': [_platform],
-        'contenus': [_editedContent()],
-        'statut': 'brouillon',
-      });
+      await _marketingService.saveDraft(
+        name: _productName,
+        platforms: [_platform],
+        contents: [_editedContent()],
+        productId: _content['id_produit'],
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Brouillon enregistré.')));
     } catch (error) {
-      if (mounted)
-        setState(() => _error = 'Enregistrement impossible : $error');
+      if (mounted) {
+        setState(() => _error = friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

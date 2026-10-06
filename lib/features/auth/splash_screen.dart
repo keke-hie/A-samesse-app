@@ -105,7 +105,10 @@ class _SplashScreenState extends State<SplashScreen> {
                           _taglines[_taglineIndex],
                           key: ValueKey(_taglineIndex),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70, fontSize: 15),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 15,
+                          ),
                         ),
                       ),
                     ),
@@ -136,7 +139,9 @@ class _SplashScreenState extends State<SplashScreen> {
                         child: const Text('Se connecter'),
                       ),
                       TextButton(
-                        style: TextButton.styleFrom(foregroundColor: AppColor.gold),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColor.gold,
+                        ),
                         onPressed: () => context.go('/register'),
                         child: const Text('Créer un compte'),
                       ),

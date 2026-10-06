@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_color.dart';
 import '../../../core/services/cart_service.dart';
@@ -10,6 +9,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/empty_state.dart';
 import 'widgets/cart_line_tile.dart';
 import 'widgets/delivery_location_sheet.dart';
+import '../../../core/services/session_service.dart';
 
 enum _PaymentMethod {
   orangeMoney('orange_money', 'Orange Money', Color(0xFFFF7900)),
@@ -33,7 +33,7 @@ class CartScreen extends StatefulWidget {
 class _CartScreenState extends State<CartScreen> {
   final _cartService = CartService();
   final _orderService = OrderService();
-  final bool _isLoggedIn = Supabase.instance.client.auth.currentUser != null;
+  final bool _isLoggedIn = SessionService.instance.isLoggedIn;
 
   List<Map<String, dynamic>> _lines = [];
   final Set<String> _selected = {};
@@ -74,7 +74,8 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  static String _lineId(Map<String, dynamic> line) => line['id_ligne'].toString();
+  static String _lineId(Map<String, dynamic> line) =>
+      line['id_ligne'].toString();
 
   static bool _isAvailable(Map<String, dynamic> line) {
     final stock = parseAmount((line['produits'] as Map?)?['stock']);
@@ -103,7 +104,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _chooseLocation() async {
-    final location = await showDeliveryLocationSheet(context, initial: _location);
+    final location = await showDeliveryLocationSheet(
+      context,
+      initial: _location,
+    );
     if (location != null) setState(() => _location = location);
   }
 
@@ -132,7 +136,9 @@ class _CartScreenState extends State<CartScreen> {
         longitude: location.point.longitude,
       );
       if (!mounted) return;
-      _showMessage('Commande ${shortOrderRef(orderId)} enregistrée. Le stock est réservé.');
+      _showMessage(
+        'Commande ${shortOrderRef(orderId)} enregistrée. Le stock est réservé.',
+      );
       context.go('/orders');
     } catch (error) {
       if (mounted) _showMessage(friendlyError(error));
@@ -143,7 +149,9 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -184,9 +192,9 @@ class _CartScreenState extends State<CartScreen> {
       );
     }
 
-    final allSelected = _lines.where(_isAvailable).every(
-      (line) => _selected.contains(_lineId(line)),
-    );
+    final allSelected = _lines
+        .where(_isAvailable)
+        .every((line) => _selected.contains(_lineId(line)));
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -218,7 +226,9 @@ class _CartScreenState extends State<CartScreen> {
               line: line,
               selected: _selected.contains(_lineId(line)),
               onSelected: (value) => setState(
-                () => value ? _selected.add(_lineId(line)) : _selected.remove(_lineId(line)),
+                () => value
+                    ? _selected.add(_lineId(line))
+                    : _selected.remove(_lineId(line)),
               ),
               onQuantityChanged: (quantity) => _runAndReload(
                 () => _cartService.setQuantity(_lineId(line), quantity),
@@ -234,8 +244,13 @@ class _CartScreenState extends State<CartScreen> {
           Card(
             margin: EdgeInsets.zero,
             child: ListTile(
-              leading: const Icon(Icons.location_on_outlined, color: AppColor.primary),
-              title: Text(_location?.address ?? 'Choisir l’adresse de livraison'),
+              leading: const Icon(
+                Icons.location_on_outlined,
+                color: AppColor.primary,
+              ),
+              title: Text(
+                _location?.address ?? 'Choisir l’adresse de livraison',
+              ),
               subtitle: _location == null
                   ? const Text('Repère + point sur la carte')
                   : const Text('Point GPS enregistré'),
@@ -254,11 +269,14 @@ class _CartScreenState extends State<CartScreen> {
               ButtonSegment(
                 value: true,
                 icon: const Icon(Icons.bolt_rounded),
-                label: Text('Express · ${formatPrice(OrderService.expressDeliveryFee)}'),
+                label: Text(
+                  'Express · ${formatPrice(OrderService.expressDeliveryFee)}',
+                ),
               ),
             ],
             selected: {_express},
-            onSelectionChanged: (value) => setState(() => _express = value.first),
+            onSelectionChanged: (value) =>
+                setState(() => _express = value.first),
           ),
           const SizedBox(height: 20),
           const _SectionTitle('Paiement'),
@@ -310,11 +328,16 @@ class _CartScreenState extends State<CartScreen> {
             const SizedBox(height: 10),
             FilledButton(
               onPressed: _isCheckingOut || _selected.isEmpty ? null : _checkout,
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
               child: _isCheckingOut
                   ? const SizedBox.square(
                       dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : Text('Commander · ${formatPrice(total)}'),
             ),
@@ -349,7 +372,10 @@ class _SummaryRow extends StatelessWidget {
     child: Row(
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: AppColor.textSecondary)),
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColor.textSecondary),
+          ),
         ),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
       ],

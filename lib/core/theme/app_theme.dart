@@ -41,8 +41,14 @@ abstract final class AppTheme {
     return base.copyWith(
       scaffoldBackgroundColor: AppColor.background,
       textTheme: text.copyWith(
-        headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
+        headlineSmall: text.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.5,
+        ),
+        titleLarge: text.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.3,
+        ),
         titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         titleSmall: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
@@ -71,7 +77,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColor.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: inputBorder,
         enabledBorder: inputBorder,
         focusedBorder: inputBorder.copyWith(
@@ -133,8 +142,14 @@ abstract final class AppTheme {
         showCheckmark: false,
         labelStyle: WidgetStateTextStyle.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)
-              : const TextStyle(color: AppColor.textPrimary, fontWeight: FontWeight.w600),
+              ? const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                )
+              : const TextStyle(
+                  color: AppColor.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
         ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
@@ -161,7 +176,9 @@ abstract final class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 11,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
             color: states.contains(WidgetState.selected)
                 ? AppColor.primary
                 : AppColor.textSecondary,
@@ -173,14 +190,18 @@ abstract final class AppTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? Colors.white : null,
+          (states) =>
+              states.contains(WidgetState.selected) ? Colors.white : null,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColor.primary : null,
+          (states) =>
+              states.contains(WidgetState.selected) ? AppColor.primary : null,
         ),
       ),
       badgeTheme: const BadgeThemeData(backgroundColor: AppColor.primary),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColor.primary),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColor.primary,
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColor.background,
         surfaceTintColor: Colors.transparent,
@@ -196,7 +217,9 @@ abstract final class AppTheme {
         backgroundColor: AppColor.textPrimary,
         contentTextStyle: const TextStyle(color: Colors.white),
         actionTextColor: AppColor.gold,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_radius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_radius),
+        ),
       ),
     );
   }

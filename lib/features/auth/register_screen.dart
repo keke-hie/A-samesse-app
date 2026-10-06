@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/app_color.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
 import '../../core/widgets/primary_button.dart';
@@ -70,7 +70,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_role != _SignupRole.buyer && _phoneController.text.trim().isEmpty) {
       return 'Le téléphone est obligatoire pour les comptes professionnels.';
     }
-    if (_role == _SignupRole.vendor && _commerceController.text.trim().isEmpty) {
+    if (_role == _SignupRole.vendor &&
+        _commerceController.text.trim().isEmpty) {
       return 'Indique le nom de ton commerce.';
     }
     if (_passwordController.text.length < 8) {
@@ -95,10 +96,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // Le rôle n'est qu'une demande : la base le contrôle et met les comptes
       // vendeur / livreur en attente de validation. Les pièces justificatives
       // sont envoyées une fois connecté, dans un espace privé.
-      final response = await Supabase.instance.client.auth.signUp(
+      final hasSession = await AuthService().signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        data: {
+        metadata: {
           'full_name': _nameController.text.trim(),
           'telephone': _phoneController.text.trim(),
           'role': _role.value,
@@ -114,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       if (!mounted) return;
 
-      if (response.session == null) {
+      if (!hasSession) {
         _showMessage(
           'Compte créé ! Confirme ton adresse email puis connecte-toi.',
         );
@@ -122,9 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
-      final session = SessionService.instance;
-      await session.refresh();
-      if (mounted) context.go(session.homePath);
+      context.go(SessionService.instance.homePath);
     } catch (error) {
       if (mounted) _showMessage(friendlyError(error));
     } finally {
@@ -133,7 +132,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -145,7 +146,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         tooltip: 'Retour',
         icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
         color: Colors.white,
-        onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
+        onPressed: () =>
+            context.canPop() ? context.pop() : context.go('/login'),
       ),
       child: AutofillGroup(
         child: Column(
@@ -327,7 +329,11 @@ class _InfoNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: AppColor.goldDark),
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColor.goldDark,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

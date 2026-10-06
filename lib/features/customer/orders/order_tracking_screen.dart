@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_color.dart';
 import '../../../core/models/order_status.dart';
@@ -9,6 +8,7 @@ import '../../../core/utils/error_message.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../../core/services/session_service.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   const OrderTrackingScreen({super.key});
@@ -19,7 +19,7 @@ class OrderTrackingScreen extends StatefulWidget {
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   final _orderService = OrderService();
-  final String? _userId = Supabase.instance.client.auth.currentUser?.id;
+  final String? _userId = SessionService.instance.user?.id;
   late final Stream<List<Map<String, dynamic>>>? _ordersStream = _userId == null
       ? null
       : _orderService.watchMyOrders(_userId);
@@ -56,7 +56,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   Future<void> _openDispute(String orderId) async {
     final sent = await showDialog<bool>(
       context: context,
-      builder: (_) => _DisputeDialog(orderId: orderId, orderService: _orderService),
+      builder: (_) =>
+          _DisputeDialog(orderId: orderId, orderService: _orderService),
     );
     if (sent == true && mounted) {
       _showMessage('Signalement envoyé. Un administrateur va l’examiner.');
@@ -64,7 +65,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showOrderDetails(Map<String, dynamic> order) {
@@ -117,13 +120,19 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             _OrderLines(linesFuture: _orderService.fetchOrderLines(orderId)),
             const Divider(height: 28),
             if ((parseAmount(order['frais_livraison']) ?? 0) > 0)
-              _detailRow('Livraison express', formatPrice(order['frais_livraison'])),
+              _detailRow(
+                'Livraison express',
+                formatPrice(order['frais_livraison']),
+              ),
             _detailRow('Total', formatPrice(order['montant_total'])),
             _detailRow(
               'Paiement',
               _paymentLabel(order['mode_paiement']?.toString()),
             ),
-            _detailRow('Date', formatDate(order['date_commande'], withTime: true)),
+            _detailRow(
+              'Date',
+              formatDate(order['date_commande'], withTime: true),
+            ),
             if (order['adresse_livraison'] != null)
               _detailRow('Adresse', order['adresse_livraison'].toString()),
             if (status != OrderStatus.awaitingPayment &&
@@ -498,9 +507,7 @@ class _OrderLines extends StatelessWidget {
         final lines = snapshot.data!;
         if (lines.isEmpty) return const Text('Aucun article détaillé.');
         return Column(
-          children: [
-            for (final line in lines) _OrderLineTile(line: line),
-          ],
+          children: [for (final line in lines) _OrderLineTile(line: line)],
         );
       },
     );
@@ -538,9 +545,8 @@ class _OrderLineTile extends StatelessWidget {
                   ? Image.network(
                       image,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const ColoredBox(
-                        color: AppColor.primarySoft,
-                      ),
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: AppColor.primarySoft),
                     )
                   : const ColoredBox(color: AppColor.primarySoft),
             ),

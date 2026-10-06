@@ -8,11 +8,7 @@ import '../../../../core/widgets/product_image.dart';
 
 /// Carte produit de la grille (accueil, vitrine d'une boutique).
 class ProductCard extends StatelessWidget {
-  const ProductCard({
-    super.key,
-    required this.product,
-    this.promos = const {},
-  });
+  const ProductCard({super.key, required this.product, this.promos = const {}});
 
   final Map<String, dynamic> product;
   final Map<String, num> promos;
@@ -65,7 +61,10 @@ class ProductCard extends StatelessWidget {
                 name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 4),
               Row(

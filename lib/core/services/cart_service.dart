@@ -114,7 +114,8 @@ class CartService {
         'taille': size,
       });
     } else {
-      final newQuantity = (parseAmount(existing['quantite']) ?? 0).toInt() + quantity;
+      final newQuantity =
+          (parseAmount(existing['quantite']) ?? 0).toInt() + quantity;
       if (stock != null && newQuantity > stock) {
         throw Exception(
           'Tu as déjà cet article au panier : il n’en reste que $stock en stock.',

@@ -18,7 +18,9 @@ import '../../features/vendor/shop_management_screen.dart';
 import '../../features/vendor/vendor_storefront_screen.dart';
 import '../../features/vendor/vendor_orders_screen.dart';
 import '../../features/vendor/vendor_dashboard_screen.dart';
-import '../../features/delivery/delivery_map_screen.dart';
+import '../../features/delivery/courier_map_screen.dart';
+import '../../features/delivery/courier_missions_screen.dart';
+import '../../features/delivery/delivery_tracking_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/admin_management_screen.dart';
 import '../../navigation/main_wrapper.dart';
@@ -74,19 +76,15 @@ final GoRouter appRouter = GoRouter(
           path: '/deals',
           builder: (context, state) => const DealsScreen(),
         ),
-        GoRoute(
-          path: '/cart',
-          builder: (context, state) => const CartScreen(),
-        ),
+        GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
         GoRoute(
           path: '/orders',
           builder: (context, state) => const OrderTrackingScreen(),
           routes: [
             GoRoute(
               path: 'track/:orderId',
-              builder: (context, state) => DeliveryMapScreen(
-                idCommande: state.pathParameters['orderId'],
-                mapOnly: true,
+              builder: (context, state) => DeliveryTrackingScreen(
+                orderId: state.pathParameters['orderId']!,
               ),
             ),
           ],
@@ -129,7 +127,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/vendor/marketing-ia',
-          builder: (context, state) => MarketingiaScreen(
+          builder: (context, state) => MarketingAiScreen(
             initialPlatform: state.uri.queryParameters['platform'],
           ),
         ),
@@ -138,7 +136,7 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) {
             final content = state.extra as Map<String, dynamic>?;
             return content == null
-                ? MarketingiaScreen()
+                ? MarketingAiScreen()
                 : CampaignEditorScreen(initialContent: content);
           },
         ),
@@ -160,20 +158,20 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/delivery/missions',
-          builder: (context, state) =>
-              const DeliveryMapScreen(missionsOnly: true),
+          builder: (context, state) => const CourierMissionsScreen(),
         ),
         GoRoute(
           path: '/delivery/map',
-          builder: (context, state) {
-            final extra = state.extra as Map<String, dynamic>?;
-            return DeliveryMapScreen(
-              idCommande:
-                  extra?['id_commande']?.toString() ?? extra?['id']?.toString(),
-              extraData: extra,
-              mapOnly: true,
-            );
-          },
+          builder: (context, state) => const CourierMapScreen(),
+          routes: [
+            GoRoute(
+              path: ':orderId',
+              builder: (context, state) => DeliveryTrackingScreen(
+                orderId: state.pathParameters['orderId']!,
+                courierMode: true,
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/delivery/profile',

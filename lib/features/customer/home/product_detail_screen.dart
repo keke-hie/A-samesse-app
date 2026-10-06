@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_color.dart';
 import '../../../core/services/cart_service.dart';
@@ -10,6 +9,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/product_image.dart';
 import 'widgets/quantity_selector.dart';
+import '../../../core/services/session_service.dart';
 
 /// Fiche produit. Chargée par identifiant pour fonctionner aussi depuis un
 /// lien partagé ; [initialProduct] évite seulement un écran de chargement.
@@ -82,7 +82,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _addToCart() async {
-    if (Supabase.instance.client.auth.currentUser == null) {
+    if (!SessionService.instance.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Connecte-toi pour ajouter au panier.'),
@@ -130,7 +130,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -154,7 +156,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final name = product['nom_produit']?.toString() ?? 'Produit';
     final basePrice = parseAmount(product['prix']);
     final unitPrice = ProductService.effectivePrice(product, _promos);
-    final hasPromo = basePrice != null && unitPrice != null && unitPrice < basePrice;
+    final hasPromo =
+        basePrice != null && unitPrice != null && unitPrice < basePrice;
     final stock = _stock;
     final outOfStock = stock != null && stock <= 0;
     final colors = _options('couleurs');
@@ -166,7 +169,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
         ),
         title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
@@ -241,7 +245,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   _OptionChips(
                     options: colors,
                     selected: _selectedColor,
-                    onSelected: (value) => setState(() => _selectedColor = value),
+                    onSelected: (value) =>
+                        setState(() => _selectedColor = value),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -250,7 +255,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   _OptionChips(
                     options: sizes,
                     selected: _selectedSize,
-                    onSelected: (value) => setState(() => _selectedSize = value),
+                    onSelected: (value) =>
+                        setState(() => _selectedSize = value),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -267,7 +273,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   description.isEmpty
                       ? 'Aucune description renseignée pour ce produit.'
                       : description,
-                  style: const TextStyle(height: 1.5, color: AppColor.textSecondary),
+                  style: const TextStyle(
+                    height: 1.5,
+                    color: AppColor.textSecondary,
+                  ),
                 ),
                 if (features.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -287,7 +296,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           Expanded(
                             child: Text(
                               feature,
-                              style: const TextStyle(color: AppColor.textSecondary),
+                              style: const TextStyle(
+                                color: AppColor.textSecondary,
+                              ),
                             ),
                           ),
                         ],
@@ -314,10 +325,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 children: [
                   Text(
                     'Total ($_quantity art.)',
-                    style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColor.textSecondary,
+                    ),
                   ),
                   Text(
-                    formatPrice(unitPrice == null ? null : unitPrice * _quantity),
+                    formatPrice(
+                      unitPrice == null ? null : unitPrice * _quantity,
+                    ),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -341,7 +357,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                         )
                       : const Icon(Icons.shopping_bag_outlined),
-                  label: Text(outOfStock ? 'Rupture de stock' : 'Ajouter au panier'),
+                  label: Text(
+                    outOfStock ? 'Rupture de stock' : 'Ajouter au panier',
+                  ),
                 ),
               ),
             ],

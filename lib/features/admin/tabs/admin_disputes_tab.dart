@@ -142,7 +142,10 @@ class _AdminDisputesTabState extends State<AdminDisputesTab> {
             const SizedBox(height: 6),
             Text(
               'Commande ${shortOrderRef(dispute['id_commande'])} · ${formatDate(dispute['date_creation'])}',
-              style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColor.textSecondary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(dispute['description']?.toString() ?? ''),
@@ -150,7 +153,10 @@ class _AdminDisputesTabState extends State<AdminDisputesTab> {
               const SizedBox(height: 8),
               Text(
                 'Suivi : $decision',
-                style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColor.textSecondary,
+                ),
               ),
             ],
             const SizedBox(height: 10),

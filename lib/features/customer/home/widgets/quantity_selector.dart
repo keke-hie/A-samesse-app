@@ -57,7 +57,10 @@ class QuantitySelector extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(
-            child: Text('Quantité', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              'Quantité',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
           buttons,
         ],

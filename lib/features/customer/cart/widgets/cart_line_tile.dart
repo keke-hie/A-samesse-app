@@ -31,10 +31,10 @@ class CartLineTile extends StatelessWidget {
     final stock = parseAmount(product['stock'])?.toInt();
     final outOfStock = stock != null && stock <= 0;
     final overStock = stock != null && quantity > stock;
-    final variants = [line['couleur'], line['taille']]
-        .whereType<String>()
-        .where((value) => value.trim().isNotEmpty)
-        .join(' · ');
+    final variants = [
+      line['couleur'],
+      line['taille'],
+    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
 
     return Card(
       margin: EdgeInsets.zero,
@@ -45,7 +45,9 @@ class CartLineTile extends StatelessWidget {
           children: [
             Checkbox(
               value: selected,
-              onChanged: outOfStock ? null : (value) => onSelected(value ?? false),
+              onChanged: outOfStock
+                  ? null
+                  : (value) => onSelected(value ?? false),
             ),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -73,14 +75,20 @@ class CartLineTile extends StatelessWidget {
                         tooltip: 'Retirer du panier',
                         visualDensity: VisualDensity.compact,
                         onPressed: onRemove,
-                        icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 20,
+                        ),
                       ),
                     ],
                   ),
                   if (variants.isNotEmpty)
                     Text(
                       variants,
-                      style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColor.textSecondary,
+                      ),
                     ),
                   const SizedBox(height: 4),
                   Row(
@@ -92,7 +100,9 @@ class CartLineTile extends StatelessWidget {
                           color: AppColor.primary,
                         ),
                       ),
-                      if (price != null && basePrice != null && price < basePrice) ...[
+                      if (price != null &&
+                          basePrice != null &&
+                          price < basePrice) ...[
                         const SizedBox(width: 6),
                         Text(
                           formatPrice(basePrice),

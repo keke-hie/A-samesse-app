@@ -17,11 +17,7 @@ class AdminService {
     String? reason,
   }) => _supabase.rpc(
     'admin_set_account_status',
-    params: {
-      'p_id_utilisateur': userId,
-      'p_statut': status,
-      'p_motif': reason,
-    },
+    params: {'p_id_utilisateur': userId, 'p_statut': status, 'p_motif': reason},
   );
 
   Future<List<Map<String, dynamic>>> listDisputes() async {

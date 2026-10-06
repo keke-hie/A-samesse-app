@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../routes/route_guard.dart';
@@ -26,6 +27,7 @@ class SessionService extends ChangeNotifier implements RouteSession {
   UserRole _role = UserRole.buyer;
   AccountStatus _status = AccountStatus.active;
   String? _displayName;
+  String? _avatarUrl;
   String? _refusalReason;
   String? _loadedUserId;
 
@@ -48,6 +50,7 @@ class SessionService extends ChangeNotifier implements RouteSession {
   @override
   bool get isCourier => isLoggedIn && _role == UserRole.courier;
   String? get displayName => _displayName;
+  String? get avatarUrl => _avatarUrl;
   String? get refusalReason => _refusalReason;
 
   /// Page d'accueil de l'espace correspondant au rôle.
@@ -93,6 +96,7 @@ class SessionService extends ChangeNotifier implements RouteSession {
         _role = isAdmin == true ? UserRole.admin : _parseRole(row?['role']);
         _status = _parseStatus(row?['statut_compte']);
         _refusalReason = row?['motif_refus']?.toString();
+        _avatarUrl = row?['avatar_url']?.toString();
         _displayName =
             row?['nom']?.toString() ??
             current.userMetadata?['full_name']?.toString();
@@ -114,10 +118,46 @@ class SessionService extends ChangeNotifier implements RouteSession {
 
   Future<void> signOut() => _supabase.auth.signOut();
 
+  Future<void> updateDisplayName(String name) async {
+    final id = user?.id;
+    if (id == null) return;
+    await _supabase
+        .from('utilisateurs')
+        .update({'nom': name})
+        .eq('id_utilisateur', id);
+    _displayName = name;
+    notifyListeners();
+  }
+
+  /// Envoie la photo de profil dans le bucket `avatars` et l'enregistre.
+  Future<void> updateAvatar(XFile file) async {
+    final id = user?.id;
+    if (id == null) return;
+    final extension = file.name.split('.').last.toLowerCase();
+    final path =
+        'avatars/${id}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+    final storage = _supabase.storage.from('avatars');
+    await storage.uploadBinary(
+      path,
+      await file.readAsBytes(),
+      fileOptions: FileOptions(
+        contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+      ),
+    );
+    final url = storage.getPublicUrl(path);
+    await _supabase
+        .from('utilisateurs')
+        .update({'avatar_url': url})
+        .eq('id_utilisateur', id);
+    _avatarUrl = url;
+    notifyListeners();
+  }
+
   void _reset() {
     _role = UserRole.buyer;
     _status = AccountStatus.active;
     _displayName = null;
+    _avatarUrl = null;
     _refusalReason = null;
     _loadedUserId = null;
   }
@@ -129,11 +169,10 @@ class SessionService extends ChangeNotifier implements RouteSession {
         _ => UserRole.buyer,
       };
 
-  static AccountStatus _parseStatus(dynamic raw) =>
-      switch (raw?.toString()) {
-        'en_attente' => AccountStatus.pending,
-        'refuse' => AccountStatus.refused,
-        'suspendu' => AccountStatus.suspended,
-        _ => AccountStatus.active,
-      };
+  static AccountStatus _parseStatus(dynamic raw) => switch (raw?.toString()) {
+    'en_attente' => AccountStatus.pending,
+    'refuse' => AccountStatus.refused,
+    'suspendu' => AccountStatus.suspended,
+    _ => AccountStatus.active,
+  };
 }

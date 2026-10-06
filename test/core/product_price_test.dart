@@ -18,7 +18,10 @@ void main() {
     });
 
     test('prix texte accepté', () {
-      expect(ProductService.effectivePrice({'id_produit': 'p2', 'prix': '4500'}, {}), 4500);
+      expect(
+        ProductService.effectivePrice({'id_produit': 'p2', 'prix': '4500'}, {}),
+        4500,
+      );
     });
   });
 }

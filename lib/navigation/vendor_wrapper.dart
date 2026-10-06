@@ -19,7 +19,7 @@ class VendorWrapper extends StatelessWidget {
       label: 'Boutique',
       icon: Icons.storefront_outlined,
       selectedIcon: Icons.storefront_rounded,
-      matches: (uri) =>
+      matcher: (uri) =>
           uri.path.startsWith('/vendor/shop-management') ||
           uri.path.startsWith('/vendor/products') ||
           uri.path.startsWith('/vendor/deals'),
@@ -29,15 +29,16 @@ class VendorWrapper extends StatelessWidget {
       label: 'Commandes',
       icon: Icons.receipt_long_outlined,
       selectedIcon: Icons.receipt_long_rounded,
-      matches: (uri) =>
-          uri.path.startsWith('/vendor/sales') || uri.path.startsWith('/vendor/orders'),
+      matcher: (uri) =>
+          uri.path.startsWith('/vendor/sales') ||
+          uri.path.startsWith('/vendor/orders'),
     ),
     NavItem(
       location: '/vendor/marketing-ia',
       label: 'Marketing',
       icon: Icons.auto_awesome_outlined,
       selectedIcon: Icons.auto_awesome,
-      matches: (uri) =>
+      matcher: (uri) =>
           uri.path.startsWith('/vendor/marketing-ia') ||
           uri.path.startsWith('/vendor/campaign-refine'),
     ),

@@ -96,14 +96,33 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   mainAxisSpacing: 10,
                   childAspectRatio: 1.42,
                   children: [
-                    _Metric('Produits', '${summary.productCount}', Icons.inventory_2_outlined),
-                    _Metric('Articles en stock', '${summary.stockCount}', Icons.warehouse_outlined),
-                    _Metric('Commandes reçues', '${summary.orderCount}', Icons.receipt_long_outlined),
-                    _Metric('Ventes payées', formatPrice(summary.confirmedSales), Icons.payments_outlined),
+                    _Metric(
+                      'Produits',
+                      '${summary.productCount}',
+                      Icons.inventory_2_outlined,
+                    ),
+                    _Metric(
+                      'Articles en stock',
+                      '${summary.stockCount}',
+                      Icons.warehouse_outlined,
+                    ),
+                    _Metric(
+                      'Commandes reçues',
+                      '${summary.orderCount}',
+                      Icons.receipt_long_outlined,
+                    ),
+                    _Metric(
+                      'Ventes payées',
+                      formatPrice(summary.confirmedSales),
+                      Icons.payments_outlined,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
-                Text('Accès rapide', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Accès rapide',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 10),
                 _Shortcut(
                   icon: Icons.storefront_outlined,
@@ -157,7 +176,10 @@ class _Metric extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColor.textSecondary,
+              ),
             ),
           ],
         ),
@@ -167,7 +189,11 @@ class _Metric extends StatelessWidget {
 }
 
 class _Shortcut extends StatelessWidget {
-  const _Shortcut({required this.icon, required this.label, required this.onTap});
+  const _Shortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;

@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_color.dart';
+import '../../../core/services/product_service.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/utils/formatters.dart';
@@ -21,12 +21,9 @@ class DealsScreen extends StatefulWidget {
 }
 
 class _DealsScreenState extends State<DealsScreen> {
-  final _supabase = Supabase.instance.client;
-  late final Stream<List<Map<String, dynamic>>> _dealsStream = _supabase
-      .from('ventes_ephemeres')
-      .stream(primaryKey: ['id_vente_ephemere'])
-      .eq('statut', 'actif')
-      .order('date_fin', ascending: true);
+  final _productService = ProductService();
+  late final Stream<List<Map<String, dynamic>>> _dealsStream = _productService
+      .watchActiveDeals();
 
   /// Produits des ventes affichées, chargés à la demande.
   final Map<String, Map<String, dynamic>> _products = {};
@@ -39,15 +36,14 @@ class _DealsScreenState extends State<DealsScreen> {
 
   Future<void> _loadProducts(Iterable<String> ids) async {
     final missing = ids
-        .where((id) => !_products.containsKey(id) && !_loadingProducts.contains(id))
+        .where(
+          (id) => !_products.containsKey(id) && !_loadingProducts.contains(id),
+        )
         .toList();
     if (missing.isEmpty) return;
     _loadingProducts.addAll(missing);
     try {
-      final rows = await _supabase
-          .from('produits')
-          .select('id_produit, nom_produit, prix, image_url')
-          .inFilter('id_produit', missing);
+      final rows = await _productService.fetchProductsByIds(missing);
       if (!mounted) return;
       setState(() {
         for (final row in rows) {
@@ -114,7 +110,8 @@ class _DealsScreenState extends State<DealsScreen> {
             return const EmptyState(
               icon: Icons.bolt_outlined,
               title: 'Aucune vente en cours',
-              message: 'Reviens bientôt : les ventes flash et vide-dressings apparaissent ici.',
+              message:
+                  'Reviens bientôt : les ventes flash et vide-dressings apparaissent ici.',
             );
           }
           _loadProducts(deals.map((deal) => deal['id_produit'].toString()));
@@ -145,7 +142,11 @@ class _DealsScreenState extends State<DealsScreen> {
 }
 
 class _DealCard extends StatelessWidget {
-  const _DealCard({required this.deal, required this.product, required this.onShare});
+  const _DealCard({
+    required this.deal,
+    required this.product,
+    required this.onShare,
+  });
 
   final Map<String, dynamic> deal;
   final Map<String, dynamic>? product;
@@ -167,7 +168,9 @@ class _DealCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: productId == null ? null : () => context.push('/home/product/$productId'),
+        onTap: productId == null
+            ? null
+            : () => context.push('/home/product/$productId'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -181,9 +184,16 @@ class _DealCard extends StatelessWidget {
                     top: 10,
                     left: 10,
                     child: Chip(
-                      label: Text(type == 'Vide Dressing' ? 'Vide-dressing' : 'Vente flash'),
+                      label: Text(
+                        type == 'Vide Dressing'
+                            ? 'Vide-dressing'
+                            : 'Vente flash',
+                      ),
                       backgroundColor: AppColor.primary,
-                      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      labelStyle: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                       side: BorderSide.none,
                     ),
                   ),
@@ -209,7 +219,10 @@ class _DealCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   if (name.isNotEmpty)
-                    Text(productName, style: const TextStyle(color: AppColor.textSecondary)),
+                    Text(
+                      productName,
+                      style: const TextStyle(color: AppColor.textSecondary),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -245,7 +258,10 @@ class _DealCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Jusqu’au ${formatDate(deal['date_fin'], withTime: true)}',
-                    style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColor.textSecondary,
+                    ),
                   ),
                 ],
               ),

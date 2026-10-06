@@ -7,17 +7,19 @@ class NavItem {
     required this.label,
     required this.icon,
     required this.selectedIcon,
-    bool Function(Uri uri)? matches,
-  }) : _matches = matches;
+    this.matcher,
+  });
 
   final String location;
   final String label;
   final IconData icon;
   final IconData selectedIcon;
-  final bool Function(Uri uri)? _matches;
+
+  /// Règle de sélection de l'onglet ; par défaut, le chemin commence par [location].
+  final bool Function(Uri uri)? matcher;
 
   bool matches(Uri uri) =>
-      _matches?.call(uri) ?? uri.path.startsWith(Uri.parse(location).path);
+      matcher?.call(uri) ?? uri.path.startsWith(Uri.parse(location).path);
 }
 
 /// Barre de navigation inférieure commune aux quatre espaces
@@ -36,7 +38,9 @@ class NavShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+          border: Border(
+            top: BorderSide(color: Theme.of(context).dividerColor),
+          ),
         ),
         child: NavigationBar(
           selectedIndex: index < 0 ? 0 : index,

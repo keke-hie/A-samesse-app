@@ -24,7 +24,10 @@ void main() {
 
   group('OrderStatus.parse', () {
     test('reconnaît les statuts du serveur', () {
-      expect(OrderStatus.parse('en_attente_paiement'), OrderStatus.awaitingPayment);
+      expect(
+        OrderStatus.parse('en_attente_paiement'),
+        OrderStatus.awaitingPayment,
+      );
       expect(OrderStatus.parse('prete'), OrderStatus.ready);
       expect(OrderStatus.parse('livre'), OrderStatus.delivered);
     });

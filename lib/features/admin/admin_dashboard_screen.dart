@@ -10,27 +10,38 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
 
 class _AdminSummary {
-  _AdminSummary({required this.orders, required this.users, required this.disputes});
+  _AdminSummary({
+    required this.orders,
+    required this.users,
+    required this.disputes,
+  });
 
   final List<Map<String, dynamic>> orders;
   final List<Map<String, dynamic>> users;
   final List<Map<String, dynamic>> disputes;
 
-  int countOrders(OrderStatus status) =>
-      orders.where((order) => OrderStatus.parse(order['statut']) == status).length;
+  int countOrders(OrderStatus status) => orders
+      .where((order) => OrderStatus.parse(order['statut']) == status)
+      .length;
 
   num get paidSales => orders
       .where((order) {
         final status = OrderStatus.parse(order['statut']);
-        return status != OrderStatus.awaitingPayment && status != OrderStatus.cancelled;
+        return status != OrderStatus.awaitingPayment &&
+            status != OrderStatus.cancelled;
       })
-      .fold<num>(0, (sum, order) => sum + (parseAmount(order['montant_total']) ?? 0));
+      .fold<num>(
+        0,
+        (sum, order) => sum + (parseAmount(order['montant_total']) ?? 0),
+      );
 
   int get pendingAccounts =>
       users.where((user) => user['statut_compte'] == 'en_attente').length;
 
   int get openDisputes => disputes
-      .where((dispute) => const {'ouvert', 'en_examen'}.contains(dispute['statut']))
+      .where(
+        (dispute) => const {'ouvert', 'en_examen'}.contains(dispute['statut']),
+      )
       .length;
 }
 
@@ -52,7 +63,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _adminService.listUsers(),
       _adminService.listDisputes(),
     ]);
-    return _AdminSummary(orders: results[0], users: results[1], disputes: results[2]);
+    return _AdminSummary(
+      orders: results[0],
+      users: results[1],
+      disputes: results[2],
+    );
   }
 
   Future<void> _reload() async {
@@ -67,7 +82,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       appBar: AppBar(
         title: const Text('Administration'),
         actions: [
-          IconButton(onPressed: _reload, tooltip: 'Actualiser', icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: _reload,
+            tooltip: 'Actualiser',
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: FutureBuilder<_AdminSummary>(
@@ -82,16 +101,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onAction: _reload,
             );
           }
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final summary = snapshot.data!;
-          final awaitingPayment = summary.countOrders(OrderStatus.awaitingPayment);
+          final awaitingPayment = summary.countOrders(
+            OrderStatus.awaitingPayment,
+          );
 
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                Text('À traiter', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'À traiter',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 10),
                 _TodoTile(
                   icon: Icons.payments_outlined,
@@ -112,7 +138,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   onTap: () => context.go('/admin/management?tab=disputes'),
                 ),
                 const SizedBox(height: 20),
-                Text('Activité', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Activité',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 10),
                 GridView.count(
                   crossAxisCount: 2,
@@ -124,7 +153,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     _Stat('Ventes payées', formatPrice(summary.paidSales)),
                     _Stat('Commandes', '${summary.orders.length}'),
-                    _Stat('En livraison', '${summary.countOrders(OrderStatus.shipping)}'),
+                    _Stat(
+                      'En livraison',
+                      '${summary.countOrders(OrderStatus.shipping)}',
+                    ),
                     _Stat('Utilisateurs', '${summary.users.length}'),
                   ],
                 ),
@@ -199,7 +231,13 @@ class _Stat extends StatelessWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 4),
-            Text(label, style: const TextStyle(color: AppColor.textSecondary, fontSize: 12)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColor.textSecondary,
+                fontSize: 12,
+              ),
+            ),
           ],
         ),
       ),

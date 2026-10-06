@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_color.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
 import '../../core/widgets/primary_button.dart';
@@ -38,13 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      final session = SessionService.instance;
-      await session.refresh();
-      if (mounted) context.go(session.homePath);
+      await AuthService().signIn(email: email, password: password);
+      if (mounted) context.go(SessionService.instance.homePath);
     } catch (error) {
       if (mounted) _showMessage(friendlyError(error));
     } finally {
@@ -53,7 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _resetPassword() async {
-    final controller = TextEditingController(text: _emailController.text.trim());
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
     final email = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -69,7 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('Envoyer le lien'),
           ),
         ],
@@ -78,8 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
     controller.dispose();
     if (email == null || email.isEmpty) return;
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-      _showMessage('Si un compte existe pour $email, un lien de réinitialisation vient d’être envoyé.');
+      await AuthService().sendPasswordReset(email);
+      _showMessage(
+        'Si un compte existe pour $email, un lien de réinitialisation vient d’être envoyé.',
+      );
     } catch (error) {
       _showMessage(friendlyError(error));
     }
@@ -87,7 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override

@@ -1,8 +1,8 @@
 import 'package:asamesse_app/core/routes/route_guard.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeSession implements RouteSession {
-  _FakeSession({
+class FakeSession implements RouteSession {
+  FakeSession({
     this.isReady = true,
     this.isLoggedIn = true,
     this.isAdmin = false,
@@ -34,18 +34,18 @@ class _FakeSession implements RouteSession {
   }
 }
 
-String? guard(_FakeSession session, String location) =>
+String? guard(FakeSession session, String location) =>
     guardRoute(session, Uri.parse(location));
 
 void main() {
   test('attend le chargement du profil sur le splash', () {
-    final session = _FakeSession(isReady: false);
+    final session = FakeSession(isReady: false);
     expect(guard(session, '/vendor/dashboard'), '/splash');
     expect(guard(session, '/splash'), isNull);
   });
 
   test('un visiteur peut parcourir le catalogue mais pas les espaces pro', () {
-    final guest = _FakeSession(isLoggedIn: false);
+    final guest = FakeSession(isLoggedIn: false);
     expect(guard(guest, '/home'), isNull);
     expect(guard(guest, '/shops/42'), isNull);
     expect(guard(guest, '/admin/dashboard'), '/login');
@@ -54,28 +54,31 @@ void main() {
   });
 
   test('un acheteur ne peut pas ouvrir l’administration par lien direct', () {
-    final buyer = _FakeSession();
+    final buyer = FakeSession();
     expect(guard(buyer, '/admin/management?tab=users'), '/home');
     expect(guard(buyer, '/vendor/products'), '/home');
     expect(guard(buyer, '/pending'), '/home');
   });
 
   test('un vendeur non validé est renvoyé vers la page de validation', () {
-    final pendingVendor = _FakeSession(isVendor: true, isActive: false);
+    final pendingVendor = FakeSession(isVendor: true, isActive: false);
     expect(guard(pendingVendor, '/vendor/dashboard'), '/pending');
     expect(guard(pendingVendor, '/pending'), isNull);
     expect(guard(pendingVendor, '/delivery/missions'), '/pending');
   });
 
   test('un vendeur validé accède à son espace mais pas à celui du livreur', () {
-    final vendor = _FakeSession(isVendor: true);
+    final vendor = FakeSession(isVendor: true);
     expect(guard(vendor, '/vendor/dashboard'), isNull);
     expect(guard(vendor, '/delivery/missions'), '/vendor/dashboard');
     expect(guard(vendor, '/pending'), '/vendor/dashboard');
   });
 
   test('un utilisateur connecté ne revoit pas la connexion', () {
-    expect(guard(_FakeSession(isAdmin: true), '/login'), '/admin/dashboard');
-    expect(guard(_FakeSession(isCourier: true), '/register'), '/delivery/missions');
+    expect(guard(FakeSession(isAdmin: true), '/login'), '/admin/dashboard');
+    expect(
+      guard(FakeSession(isCourier: true), '/register'),
+      '/delivery/missions',
+    );
   });
 }

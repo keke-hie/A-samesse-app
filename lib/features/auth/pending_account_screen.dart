@@ -112,7 +112,10 @@ class _PendingAccountScreenState extends State<PendingAccountScreen> {
             style: const TextStyle(color: AppColor.textSecondary),
           ),
           const SizedBox(height: 24),
-          Text('Pièces justificatives', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Pièces justificatives',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 4),
           const Text(
             'Elles restent privées : seuls les administrateurs y ont accès.',

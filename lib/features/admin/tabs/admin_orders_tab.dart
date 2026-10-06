@@ -154,7 +154,10 @@ class _AdminOrdersTabState extends State<AdminOrdersTab> {
             const SizedBox(height: 6),
             Text(
               '${order['acheteur'] ?? 'Client'} · ${formatDate(order['date_commande'], withTime: true)}',
-              style: const TextStyle(fontSize: 12, color: AppColor.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColor.textSecondary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
