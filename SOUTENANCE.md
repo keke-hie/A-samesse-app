@@ -1,12 +1,18 @@
-# Démonstration — A'samesse (version web)
+# Démonstration — A'samesse
+
+- **Application mobile** (Android / iOS) : client, vendeur, livreur.
+- **Site web** : console d'administration uniquement.
 
 ## Préparer (la veille)
 
 1. **Base Supabase** : exécuter dans le SQL Editor, dans l'ordre, les fichiers de
    `supabase/migrations/` listés dans le README (dont `20261006120000_simulated_payment.sql`).
-2. **Lancer le site** : `flutter run -d chrome --web-port 8080`
+2. **Installer l'app** sur le(s) téléphone(s) : `flutter build apk` puis
+   installer `build/app/outputs/flutter-apk/app-release.apk`
+   (ou `flutter run` téléphone branché).
+   **Lancer la console admin** : `flutter run -d chrome`
    (ou `flutter build web` puis publier `build/web`).
-3. **Créer 4 comptes** dans le site (4 adresses e-mail différentes) :
+3. **Créer 4 comptes** dans l'app mobile (4 adresses e-mail différentes) :
    - `admin@…` en **Acheteur**, puis dans le SQL Editor :
      ```sql
      insert into public.administrateurs (id_administrateur)
@@ -14,12 +20,16 @@
      update public.utilisateurs set role = 'Admin' where email = 'admin@…';
      ```
    - `vendeur@…` en **Vendeur**, `livreur@…` en **Livreur**, `client@…` en **Acheteur**.
-4. **Valider les comptes pro** : se connecter en admin › Comptes › valider le
+4. **Valider les comptes pro** : se connecter sur la console web › Comptes › valider le
    vendeur et le livreur (ou les laisser « à valider » pour le montrer en direct).
 5. **Préparer le catalogue** : en vendeur, compléter la boutique et ajouter
    2-3 produits avec photo (stock 5 par exemple) ; créer une vente flash.
-6. **Ouvrir 4 fenêtres** (ou profils Chrome / navigation privée) : une par compte.
-   La session est propre à chaque navigateur.
+6. **Répartir les rôles** : la console admin sur l'ordinateur ; client,
+   vendeur et livreur sur téléphones (ou émulateurs). Avec un seul téléphone,
+   se déconnecter / reconnecter entre les étapes.
+   *Secours* : `flutter run -d chrome --dart-define=WEB_FULL_APP=true`
+   affiche l'app mobile complète dans le navigateur (une fenêtre de
+   navigation privée par compte).
 
 ## Scénario (≈ 10 min)
 
@@ -34,7 +44,7 @@
 | 6 | Client | Commandes › détail : statut « En livraison », **code de remise**, Suivre le livreur | Suivi temps réel |
 | 7 | Livreur | Confirmer la remise › saisir le code du client | Commande « Livrée » |
 | 8 | Client | Signaler un problème | Litige |
-| 9 | Admin | Accueil (chiffres), Comptes (pièces justificatives), Litiges | Back-office |
+| 9 | Admin (web) | Tableau de bord, Comptes (pièces justificatives), Litiges | Console d'administration |
 | 10 | Vendeur | Marketing IA *(si la clé Gemini est configurée)* | Génération de publications |
 
 ## Codes et valeurs de démonstration
@@ -48,6 +58,6 @@
 - **Le livreur ne voit pas la livraison** : la commande doit être « Prête » et
   le compte livreur validé (admin › Comptes).
 - **Le GPS ne marche pas** : le navigateur doit autoriser la localisation, et
-  le site doit être en `https` ou en `localhost`.
+  téléphone doit autoriser la localisation pour l'app.
 - **Un compte arrive sur « compte en attente »** : le valider dans admin › Comptes,
   puis « Vérifier mon statut ».
