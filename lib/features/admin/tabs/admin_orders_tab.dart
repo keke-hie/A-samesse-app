@@ -8,8 +8,8 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/status_chip.dart';
 
-/// Suivi des commandes et confirmation manuelle des paiements
-/// (en attendant l'intégration d'un agrégateur Mobile Money).
+/// Suivi des commandes (le paiement est réglé par l'acheteur dans l'app,
+/// en mode simulé) et annulation si besoin.
 class AdminOrdersTab extends StatefulWidget {
   const AdminOrdersTab({super.key});
 
@@ -21,7 +21,7 @@ class _AdminOrdersTabState extends State<AdminOrdersTab> {
   final _orderService = OrderService();
   late Future<List<Map<String, dynamic>>> _ordersFuture = _orderService
       .adminListOrders();
-  bool _onlyAwaitingPayment = true;
+  bool _onlyInProgress = true;
   final Set<String> _busy = {};
 
   Future<void> _reload() async {
@@ -93,9 +93,8 @@ class _AdminOrdersTabState extends State<AdminOrdersTab> {
         final orders = snapshot.data!
             .where(
               (order) =>
-                  !_onlyAwaitingPayment ||
-                  OrderStatus.parse(order['statut']) ==
-                      OrderStatus.awaitingPayment,
+                  !_onlyInProgress ||
+                  !OrderStatus.parse(order['statut']).isFinal,
             )
             .toList();
 
@@ -106,10 +105,9 @@ class _AdminOrdersTabState extends State<AdminOrdersTab> {
             children: [
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Seulement les paiements à confirmer'),
-                value: _onlyAwaitingPayment,
-                onChanged: (value) =>
-                    setState(() => _onlyAwaitingPayment = value),
+                title: const Text('Seulement les commandes en cours'),
+                value: _onlyInProgress,
+                onChanged: (value) => setState(() => _onlyInProgress = value),
               ),
               if (orders.isEmpty)
                 const Padding(
@@ -161,33 +159,19 @@ class _AdminOrdersTabState extends State<AdminOrdersTab> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${formatPrice(order['montant_total'])} · ${order['mode_paiement'] ?? '—'}',
+              [
+                formatPrice(order['montant_total']),
+                order['mode_paiement'] ?? '—',
+                if (order['reference_paiement'] != null)
+                  order['reference_paiement'],
+              ].join(' · '),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            if (status == OrderStatus.awaitingPayment || canCancel) ...[
+            if (canCancel) ...[
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 children: [
-                  if (status == OrderStatus.awaitingPayment)
-                    FilledButton(
-                      onPressed: busy
-                          ? null
-                          : () async {
-                              if (!await _confirm(
-                                'Confirmer le paiement ?',
-                                'Vérifie d’abord la réception de ${formatPrice(order['montant_total'])} sur le compte marchand.',
-                              )) {
-                                return;
-                              }
-                              await _run(
-                                orderId,
-                                () => _orderService.confirmPayment(orderId),
-                                'Paiement confirmé : le vendeur peut préparer.',
-                              );
-                            },
-                      child: const Text('Paiement reçu'),
-                    ),
                   if (canCancel)
                     TextButton(
                       style: TextButton.styleFrom(

@@ -54,6 +54,7 @@ void main() {
     expect(guard(guest, '/admin/dashboard'), '/login');
     expect(guard(guest, '/vendor/dashboard'), '/login');
     expect(guard(guest, '/delivery/missions'), '/login');
+    expect(guard(guest, '/pay/abc'), '/login');
   });
 
   test('un acheteur ne peut pas ouvrir l’administration par lien direct', () {

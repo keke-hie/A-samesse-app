@@ -136,10 +136,8 @@ class _CartScreenState extends State<CartScreen> {
         longitude: location.point.longitude,
       );
       if (!mounted) return;
-      _showMessage(
-        'Commande ${shortOrderRef(orderId)} enregistrée. Le stock est réservé.',
-      );
-      context.go('/orders');
+      // Le stock est réservé : on passe au paiement.
+      context.go('/pay/$orderId');
     } catch (error) {
       if (mounted) _showMessage(friendlyError(error));
       await _load();
@@ -300,7 +298,7 @@ class _CartScreenState extends State<CartScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Le paiement est confirmé par A’samesse avant la préparation de ta commande.',
+            'Tu paieras à l’étape suivante (paiement simulé pour la démonstration).',
             style: TextStyle(fontSize: 12, color: AppColor.textSecondary),
           ),
         ],

@@ -12,6 +12,7 @@ import '../../features/customer/home/product_detail_screen.dart';
 import '../../features/customer/deals/deals_screen.dart';
 import '../../features/customer/cart/cart_screen.dart';
 import '../../features/customer/orders/order_tracking_screen.dart';
+import '../../features/customer/payment/payment_screen.dart';
 import '../../features/customer/profile/profile_screen.dart';
 import 'package:asamesse_app/features/vendor/marketing_ia_screen.dart';
 import '../../features/vendor/campaign_editor_screen.dart';
@@ -43,6 +44,11 @@ final GoRouter appRouter = GoRouter(
   routes: [
     // --- AUTHENTIFICATION ---
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/pay/:orderId',
+      builder: (context, state) =>
+          PaymentScreen(orderId: state.pathParameters['orderId']!),
+    ),
     GoRoute(
       path: '/reset-password',
       builder: (context, state) => const ResetPasswordScreen(),

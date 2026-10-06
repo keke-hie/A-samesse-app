@@ -27,6 +27,8 @@ String? guardRoute(RouteSession session, Uri uri) {
   }
   if (path == '/reset-password') return session.homePath;
 
+  if (under('/pay') && !session.isLoggedIn) return '/login';
+
   if (under('/admin')) {
     if (!session.isLoggedIn) return '/login';
     return session.isAdmin ? null : session.homePath;

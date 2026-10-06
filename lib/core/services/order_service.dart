@@ -36,10 +36,21 @@ class OrderService {
   Future<void> cancelOrder(String orderId) =>
       _supabase.rpc('cancel_order', params: {'p_id_commande': orderId});
 
-  Future<void> confirmPayment(String orderId) => _supabase.rpc(
-    'admin_confirm_payment',
-    params: {'p_id_commande': orderId},
-  );
+  /// Paiement simulé (démo) : passe la commande à « payee » et renvoie la
+  /// référence de transaction fictive.
+  Future<String> simulatePayment(String orderId, String paymentMethod) async {
+    final reference = await _supabase.rpc(
+      'simulate_payment',
+      params: {'p_id_commande': orderId, 'p_mode_paiement': paymentMethod},
+    );
+    return reference.toString();
+  }
+
+  Future<Map<String, dynamic>?> fetchOrder(String orderId) => _supabase
+      .from('commandes')
+      .select()
+      .eq('id_commande', orderId)
+      .maybeSingle();
 
   Future<void> vendorAdvance(String orderId, String nextStatus) =>
       _supabase.rpc(

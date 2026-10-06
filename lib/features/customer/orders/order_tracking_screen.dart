@@ -146,6 +146,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             ],
             if (status == OrderStatus.awaitingPayment) ...[
               const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  context.push('/pay/$orderId');
+                },
+                icon: const Icon(Icons.lock_outline_rounded),
+                label: const Text('Payer maintenant'),
+              ),
+              const SizedBox(height: 8),
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: AppColor.danger),
                 onPressed: () => _cancelOrder(sheetContext, orderId),
@@ -328,7 +337,7 @@ class _StatusTimeline extends StatelessWidget {
         icon: Icons.hourglass_top_rounded,
         color: AppColor.warning,
         text:
-            'Ta commande sera préparée dès que le paiement sera confirmé. '
+            'Paie ta commande pour que le vendeur la prépare. '
             'Le stock est réservé pour toi.',
       );
     }

@@ -105,9 +105,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final summary = snapshot.data!;
-          final awaitingPayment = summary.countOrders(
-            OrderStatus.awaitingPayment,
-          );
+          final toPrepare =
+              summary.countOrders(OrderStatus.paid) +
+              summary.countOrders(OrderStatus.preparing);
 
           return RefreshIndicator(
             onRefresh: _reload,
@@ -120,9 +120,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 10),
                 _TodoTile(
-                  icon: Icons.payments_outlined,
-                  label: 'Paiements à confirmer',
-                  count: awaitingPayment,
+                  icon: Icons.inventory_2_outlined,
+                  label: 'Commandes à préparer',
+                  count: toPrepare,
                   onTap: () => context.go('/admin/management?tab=orders'),
                 ),
                 _TodoTile(

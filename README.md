@@ -62,16 +62,16 @@ Règles suivies :
 ## Cycle d'une commande
 
 ```
-en_attente_paiement ─(admin : paiement reçu)→ payee
+en_attente_paiement ─(acheteur : paiement simulé dans l'app)→ payee
 payee ─(vendeur)→ en_preparation ─(vendeur)→ prete   ⇒ livraison proposée aux livreurs
 prete ─(livreur prend la livraison)→ en_livraison
 en_livraison ─(livreur saisit le code du client)→ livre
 annule : par le client avant paiement, par l'admin avant la livraison (stock restitué)
 ```
 
-Le paiement est confirmé manuellement par un administrateur tant qu'aucun
-agrégateur Mobile Money (Orange Money / MTN MoMo) n'est intégré ; un webhook
-de paiement pourra appeler la même transition.
+Le paiement est **simulé** (`simulate_payment`) : écran Orange Money / MTN MoMo /
+carte, sans débit réel ni enregistrement des données saisies. Pour un vrai
+paiement, un webhook d'agrégateur remplacera cet appel.
 
 ## Comptes professionnels
 
@@ -80,4 +80,5 @@ Les vendeurs et livreurs s'inscrivent normalement, puis envoient leurs pièces
 pièces sont stockées dans le bucket privé `documents` ; l'admin les consulte
 par lien temporaire et valide, refuse ou suspend le compte.
 
-Voir aussi [DEEP_LINKS.md](DEEP_LINKS.md) pour les liens `asamesse.app`.
+Voir aussi [SOUTENANCE.md](SOUTENANCE.md) (démonstration) et
+[DEEP_LINKS.md](DEEP_LINKS.md) (liens `asamesse.app`).
