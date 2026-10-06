@@ -44,7 +44,7 @@ class ProductService {
   Stream<List<Map<String, dynamic>>> watchActiveDeals() => _supabase
       .from('ventes_ephemeres')
       .stream(primaryKey: ['id_vente_ephemere'])
-      .eq('statut', 'actif')
+      .eq('statut', 'ACTIVE')
       .order('date_fin', ascending: true);
 
   Future<List<Map<String, dynamic>>> fetchProductsByIds(
@@ -71,7 +71,7 @@ class ProductService {
     'type_vente': saleType,
     'date_debut': DateTime.now().toUtc().toIso8601String(),
     'date_fin': endsAt.toUtc().toIso8601String(),
-    'statut': 'actif',
+    'statut': 'ACTIVE',
   });
 
   /// Prix promo des ventes éphémères en cours, par produit.
@@ -82,7 +82,7 @@ class ProductService {
     var query = _supabase
         .from('ventes_ephemeres')
         .select('id_produit, prix_promo, date_debut')
-        .eq('statut', 'actif')
+        .eq('statut', 'ACTIVE')
         .gt('date_fin', now);
     if (productIds != null) query = query.inFilter('id_produit', productIds);
     final rows = await query;

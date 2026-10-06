@@ -9,9 +9,10 @@ import '../../core/widgets/primary_button.dart';
 import 'auth_screen_shell.dart';
 
 enum _SignupRole {
-  buyer('acheteur', 'Acheteur', Icons.shopping_bag_outlined),
-  vendor('vendeur', 'Vendeur', Icons.storefront_outlined),
-  courier('livreur', 'Livreur', Icons.delivery_dining_outlined);
+  // Valeurs de la contrainte utilisateurs_role_check (avec majuscule).
+  buyer('Acheteur', 'Acheteur', Icons.shopping_bag_outlined),
+  vendor('Vendeur', 'Vendeur', Icons.storefront_outlined),
+  courier('Livreur', 'Livreur', Icons.delivery_dining_outlined);
 
   const _SignupRole(this.value, this.label, this.icon);
 

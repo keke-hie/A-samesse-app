@@ -130,7 +130,7 @@ class _UserTile extends StatelessWidget {
           ),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(user['role']?.toString() ?? 'acheteur'),
+        subtitle: Text(user['role']?.toString() ?? 'Acheteur'),
         trailing: StatusChip(label: status.label, color: status.color),
       ),
     );
@@ -230,8 +230,8 @@ class _UserReviewSheetState extends State<_UserReviewSheet> {
   Widget build(BuildContext context) {
     final user = widget.user;
     final status = user['statut_compte']?.toString() ?? 'actif';
-    final role = user['role']?.toString() ?? 'acheteur';
-    final isPro = role == 'vendeur' || role == 'livreur';
+    final role = user['role']?.toString() ?? 'Acheteur';
+    final isPro = const {'vendeur', 'livreur'}.contains(role.toLowerCase());
 
     return SafeArea(
       child: ListView(

@@ -28,7 +28,7 @@ as $$
       select min(v.prix_promo)
       from public.ventes_ephemeres v
       where v.id_produit = p.id_produit
-        and v.statut = 'actif'
+        and v.statut = 'ACTIVE'
         and coalesce(v.date_debut, '-infinity'::timestamptz) <= now()
         and v.date_fin > now()
     ), p.prix)

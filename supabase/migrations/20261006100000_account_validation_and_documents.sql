@@ -42,16 +42,17 @@ security definer
 set search_path = ''
 as $$
 begin
-  new.role := lower(trim(coalesce(new.role, 'acheteur')));
-
+  -- Valeurs imposées par la contrainte utilisateurs_role_check.
   if public.is_privileged_session() then
     return new;
   end if;
 
-  if new.role not in ('acheteur', 'vendeur', 'livreur') then
-    new.role := 'acheteur';
-  end if;
-  new.statut_compte := case when new.role = 'acheteur' then 'actif' else 'en_attente' end;
+  new.role := case lower(trim(coalesce(new.role, '')))
+    when 'vendeur' then 'Vendeur'
+    when 'livreur' then 'Livreur'
+    else 'Acheteur'
+  end;
+  new.statut_compte := case when new.role = 'Acheteur' then 'actif' else 'en_attente' end;
   new.motif_refus := null;
   return new;
 end;
@@ -185,6 +186,12 @@ begin
   if not found then
     raise exception 'Utilisateur introuvable.' using errcode = '22023';
   end if;
+
+  -- Colonnes d'approbation déjà présentes dans le schéma, gardées cohérentes.
+  update public.vendeurs set is_approved = (p_statut = 'actif')
+  where id_vendeur = p_id_utilisateur;
+  update public.livreurs set is_approved = (p_statut = 'actif')
+  where id_livreur = p_id_utilisateur;
 end;
 $$;
 
