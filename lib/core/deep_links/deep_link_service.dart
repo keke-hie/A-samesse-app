@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../routes/app_router.dart';
@@ -40,6 +41,9 @@ class DeepLinkService {
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
+    // Sur le web, l'URL du navigateur est déjà gérée par go_router : la traiter
+    // ici renverrait vers l'accueil à chaque rechargement de page.
+    if (kIsWeb) return;
 
     // Lien ayant provoqué le lancement de l'application (cold start).
     try {

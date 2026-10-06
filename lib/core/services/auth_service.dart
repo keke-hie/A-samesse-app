@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'session_service.dart';
@@ -26,6 +27,7 @@ class AuthService {
       email: email,
       password: password,
       data: metadata,
+      emailRedirectTo: _webRedirect,
     );
     if (response.session == null) return false;
     await SessionService.instance.refresh();
@@ -33,5 +35,9 @@ class AuthService {
   }
 
   Future<void> sendPasswordReset(String email) =>
-      _supabase.auth.resetPasswordForEmail(email);
+      _supabase.auth.resetPasswordForEmail(email, redirectTo: _webRedirect);
+
+  /// Sur le web, les liens des e-mails reviennent sur le site courant (l'URL
+  /// doit figurer dans Authentication > URL Configuration de Supabase).
+  static String? get _webRedirect => kIsWeb ? Uri.base.origin : null;
 }

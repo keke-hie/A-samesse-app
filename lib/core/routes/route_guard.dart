@@ -6,6 +6,7 @@ abstract interface class RouteSession {
   bool get isVendor;
   bool get isCourier;
   bool get isActive;
+  bool get isRecoveringPassword;
   String get homePath;
 }
 
@@ -19,6 +20,12 @@ String? guardRoute(RouteSession session, Uri uri) {
 
   // Tant que le profil n'est pas chargé, le splash attend.
   if (!session.isReady) return path == '/splash' ? null : '/splash';
+
+  // Ouverture du lien « mot de passe oublié » : choisir d'abord un nouveau mot de passe.
+  if (session.isRecoveringPassword) {
+    return path == '/reset-password' ? null : '/reset-password';
+  }
+  if (path == '/reset-password') return session.homePath;
 
   if (under('/admin')) {
     if (!session.isLoggedIn) return '/login';

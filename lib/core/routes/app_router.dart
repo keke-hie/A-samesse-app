@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 // Importations des écrans
 import '../../features/auth/pending_account_screen.dart';
+import '../../features/auth/reset_password_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
@@ -42,6 +43,10 @@ final GoRouter appRouter = GoRouter(
   routes: [
     // --- AUTHENTIFICATION ---
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => const ResetPasswordScreen(),
+    ),
     GoRoute(
       path: '/pending',
       builder: (context, state) => const PendingAccountScreen(),

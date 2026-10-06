@@ -23,6 +23,7 @@ class SessionService extends ChangeNotifier implements RouteSession {
   StreamSubscription<AuthState>? _authSubscription;
 
   bool _isReady = false;
+  bool _isRecoveringPassword = false;
   final Completer<void> _ready = Completer<void>();
   UserRole _role = UserRole.buyer;
   AccountStatus _status = AccountStatus.active;
@@ -33,6 +34,9 @@ class SessionService extends ChangeNotifier implements RouteSession {
 
   @override
   bool get isReady => _isReady;
+
+  @override
+  bool get isRecoveringPassword => _isRecoveringPassword;
 
   /// Se complète après le premier chargement du profil.
   Future<void> get ready => _ready.future;
@@ -67,6 +71,11 @@ class SessionService extends ChangeNotifier implements RouteSession {
 
   Future<void> init() async {
     _authSubscription ??= _supabase.auth.onAuthStateChange.listen((state) {
+      if (state.event == AuthChangeEvent.passwordRecovery) {
+        _isRecoveringPassword = true;
+        notifyListeners();
+        return;
+      }
       if (state.event == AuthChangeEvent.initialSession) return;
       if (state.event == AuthChangeEvent.signedOut) {
         _reset();
@@ -117,6 +126,13 @@ class SessionService extends ChangeNotifier implements RouteSession {
   }
 
   Future<void> signOut() => _supabase.auth.signOut();
+
+  /// Termine la récupération : enregistre le nouveau mot de passe.
+  Future<void> setNewPassword(String password) async {
+    await _supabase.auth.updateUser(UserAttributes(password: password));
+    _isRecoveringPassword = false;
+    await refresh();
+  }
 
   Future<void> updateDisplayName(String name) async {
     final id = user?.id;

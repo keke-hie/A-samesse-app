@@ -9,6 +9,7 @@ class FakeSession implements RouteSession {
     this.isVendor = false,
     this.isCourier = false,
     this.isActive = true,
+    this.isRecoveringPassword = false,
   });
 
   @override
@@ -23,6 +24,8 @@ class FakeSession implements RouteSession {
   final bool isCourier;
   @override
   final bool isActive;
+  @override
+  final bool isRecoveringPassword;
 
   @override
   String get homePath {
@@ -80,5 +83,12 @@ void main() {
       guard(FakeSession(isCourier: true), '/register'),
       '/delivery/missions',
     );
+  });
+
+  test('le lien de réinitialisation impose de choisir un mot de passe', () {
+    final session = FakeSession(isRecoveringPassword: true);
+    expect(guard(session, '/home'), '/reset-password');
+    expect(guard(session, '/reset-password'), isNull);
+    expect(guard(FakeSession(), '/reset-password'), '/home');
   });
 }
