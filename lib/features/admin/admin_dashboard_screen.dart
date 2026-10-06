@@ -40,7 +40,10 @@ class _AdminSummary {
 
   int get openDisputes => disputes
       .where(
-        (dispute) => const {'ouvert', 'en_examen'}.contains(dispute['statut']),
+        (dispute) => const {
+          'En attente',
+          'En examen',
+        }.contains(dispute['statut_litige'] ?? 'En attente'),
       )
       .length;
 }

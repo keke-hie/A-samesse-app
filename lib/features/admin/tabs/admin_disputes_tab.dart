@@ -33,7 +33,7 @@ class _AdminDisputesTabState extends State<AdminDisputesTab> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          status == 'en_examen' ? 'Mettre en examen' : 'Décision sur le litige',
+          status == 'En examen' ? 'Mettre en examen' : 'Décision sur le litige',
         ),
         content: TextField(
           controller: controller,
@@ -117,7 +117,7 @@ class _AdminDisputesTabState extends State<AdminDisputesTab> {
   }
 
   Widget _buildDispute(Map<String, dynamic> dispute) {
-    final status = dispute['statut']?.toString() ?? 'ouvert';
+    final status = dispute['statut_litige']?.toString() ?? 'En attente';
     final decision = dispute['decision_admin']?.toString() ?? '';
     return Card(
       child: Padding(
@@ -164,15 +164,15 @@ class _AdminDisputesTabState extends State<AdminDisputesTab> {
               spacing: 8,
               children: [
                 OutlinedButton(
-                  onPressed: () => _decide(dispute, 'en_examen'),
+                  onPressed: () => _decide(dispute, 'En examen'),
                   child: const Text('En examen'),
                 ),
                 TextButton(
-                  onPressed: () => _decide(dispute, 'accepte'),
+                  onPressed: () => _decide(dispute, 'Accepté'),
                   child: const Text('Accepter'),
                 ),
                 TextButton(
-                  onPressed: () => _decide(dispute, 'rejete'),
+                  onPressed: () => _decide(dispute, 'Rejeté'),
                   child: const Text('Rejeter'),
                 ),
               ],

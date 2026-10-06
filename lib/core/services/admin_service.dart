@@ -24,7 +24,7 @@ class AdminService {
     final response = await _supabase
         .from('litiges')
         .select(
-          'id_litige, id_commande, id_acheteur, motif, description, statut, date_creation, decision_admin',
+          'id_litige, id_commande, id_acheteur, motif, description, statut_litige, date_creation, decision_admin',
         )
         .order('date_creation', ascending: false);
     return List<Map<String, dynamic>>.from(response);
@@ -37,10 +37,10 @@ class AdminService {
   }) => _supabase
       .from('litiges')
       .update({
-        'statut': status,
+        'statut_litige': status,
         'decision_admin': decision,
         'id_administrateur': _supabase.auth.currentUser?.id,
-        'date_decision': DateTime.now().toUtc().toIso8601String(),
+        'date_resolution': DateTime.now().toUtc().toIso8601String(),
       })
       .eq('id_litige', disputeId);
 }
