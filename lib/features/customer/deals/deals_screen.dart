@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
+import '../../../core/services/session_service.dart';
 import '../../../core/widgets/apple_button.dart';
 
 class DealsScreen extends StatefulWidget {
@@ -15,39 +16,9 @@ class DealsScreen extends StatefulWidget {
 class _DealsScreenState extends State<DealsScreen> {
   final _supabase = Supabase.instance.client;
 
-  // Variable de rôle de l'utilisateur
-  bool _isVendor = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkUserRole();
-  }
-
-  // Vérifier si l'utilisateur connecté est un vendeur pour afficher le bouton "Nouvelle Vente"
-  Future<void> _checkUserRole() async {
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user != null) {
-        final data = await _supabase
-            .from(
-              'utilisateurs',
-            ) // Correction : utilisation de la bonne table 'utilisateurs'
-            .select('role')
-            .eq('id_utilisateur', user.id)
-            .maybeSingle();
-
-        if (data != null &&
-            data['role']?.toString().toLowerCase() == 'vendeur') {
-          if (mounted) {
-            setState(() {
-              _isVendor = true;
-            });
-          }
-        }
-      }
-    } catch (_) {}
-  }
+  // Seuls les vendeurs validés peuvent publier une vente.
+  bool get _isVendor =>
+      SessionService.instance.isVendor && SessionService.instance.isActive;
 
   // Écouter en temps réel la table `ventes_ephemeres`
   Stream<List<Map<String, dynamic>>> _getVentesEphemeresStream() {

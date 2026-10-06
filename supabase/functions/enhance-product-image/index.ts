@@ -72,13 +72,16 @@ denoRuntime.serve(async (request: Request) => {
     const user = await authResponse.json();
 
     const roleResponse = await fetch(
-      `${supabaseUrl}/rest/v1/utilisateurs?id_utilisateur=eq.${encodeURIComponent(user.id)}&select=role`,
+      `${supabaseUrl}/rest/v1/utilisateurs?id_utilisateur=eq.${encodeURIComponent(user.id)}&select=role,statut_compte`,
       { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } },
     );
     if (!roleResponse.ok) return jsonResponse({ error: "Vérification du rôle vendeur impossible." }, 500);
     const userRows = await roleResponse.json();
     if (userRows[0]?.role?.toString().toLowerCase() !== "vendeur") {
       return jsonResponse({ error: "Cette fonction est réservée aux vendeurs." }, 403);
+    }
+    if ((userRows[0]?.statut_compte ?? "actif") !== "actif") {
+      return jsonResponse({ error: "Ton compte vendeur doit d'abord être validé." }, 403);
     }
 
     const body = await request.json();

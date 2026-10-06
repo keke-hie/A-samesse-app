@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_color.dart';
 
+/// Bouton principal de l'application (pleine largeur, forme pilule).
 class AppleButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -8,6 +9,7 @@ class AppleButton extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final bool isOutlined;
+  final bool isLoading;
   final double height;
 
   const AppleButton({
@@ -18,13 +20,15 @@ class AppleButton extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.isOutlined = false,
-    this.height = 54.0,
+    this.isLoading = false,
+    this.height = 52.0,
   });
 
   @override
   Widget build(BuildContext context) {
     final effectiveBgColor = backgroundColor ?? AppColor.primary;
-    final effectiveTextColor = textColor ?? (isOutlined ? AppColor.primary : Colors.white);
+    final effectiveTextColor =
+        textColor ?? (isOutlined ? AppColor.primary : Colors.white);
 
     return SizedBox(
       height: height,
@@ -32,32 +36,47 @@ class AppleButton extends StatelessWidget {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: isOutlined ? Colors.transparent : effectiveBgColor,
-          elevation: isOutlined ? 0 : 2,
+          foregroundColor: effectiveTextColor,
+          disabledBackgroundColor: isOutlined
+              ? Colors.transparent
+              : effectiveBgColor.withValues(alpha: 0.5),
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28.0),
+            borderRadius: BorderRadius.circular(height / 2),
             side: isOutlined
-                ? BorderSide(color: AppColor.primary, width: 1.5)
+                ? const BorderSide(color: AppColor.primary, width: 1.5)
                 : BorderSide.none,
           ),
         ),
-        onPressed: onPressed,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: effectiveTextColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        onPressed: isLoading ? null : onPressed,
+        child: isLoading
+            ? SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: effectiveTextColor,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      text,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: effectiveTextColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (icon != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(icon, color: effectiveTextColor, size: 20),
+                  ],
+                ],
               ),
-            ),
-            if (icon != null) ...[
-              const SizedBox(width: 8),
-              Icon(icon, color: effectiveTextColor, size: 20),
-            ],
-          ],
-        ),
       ),
     );
   }

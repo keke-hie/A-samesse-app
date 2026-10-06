@@ -77,6 +77,24 @@ denoRuntime.serve(async (request: Request) => {
     if (!authResponse.ok) return jsonResponse({ error: "Session invalide." }, 401);
     const user = await authResponse.json();
 
+    // Réservé aux vendeurs validés : chaque appel consomme le quota Gemini.
+    const serviceRoleKey = denoRuntime.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRoleKey) {
+      return jsonResponse({ error: "Le service marketing n'est pas configuré." }, 500);
+    }
+    const roleResponse = await fetch(
+      `${supabaseUrl}/rest/v1/utilisateurs?id_utilisateur=eq.${encodeURIComponent(user.id)}&select=role,statut_compte`,
+      { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } },
+    );
+    if (!roleResponse.ok) return jsonResponse({ error: "Vérification du rôle vendeur impossible." }, 500);
+    const userRows = await roleResponse.json();
+    if (userRows[0]?.role?.toString().toLowerCase() !== "vendeur") {
+      return jsonResponse({ error: "Cette fonction est réservée aux vendeurs." }, 403);
+    }
+    if ((userRows[0]?.statut_compte ?? "actif") !== "actif") {
+      return jsonResponse({ error: "Ton compte vendeur doit d'abord être validé." }, 403);
+    }
+
     const body = await request.json();
     const productName = typeof body.productName === "string" ? body.productName.trim() : "";
     const description = typeof body.description === "string" ? body.description.trim() : "";
@@ -157,11 +175,6 @@ denoRuntime.serve(async (request: Request) => {
       }
 
       if (!includeVisuals) return jsonResponse(generated);
-
-      const serviceRoleKey = denoRuntime.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (!serviceRoleKey) {
-        return jsonResponse({ error: "Le stockage sécurisé Supabase n'est pas configuré." }, 500);
-      }
 
       const contents = await Promise.all(generated.contents.map(async (content: Record<string, unknown>) => {
         const platform = String(content.platform ?? "");

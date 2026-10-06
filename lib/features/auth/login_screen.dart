@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/session_service.dart';
+import '../../core/utils/error_message.dart';
 import '../../core/widgets/apple_button.dart';
 import 'auth_screen_shell.dart';
 
@@ -25,80 +27,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    // Le mot de passe n'est jamais modifié : un espace peut en faire partie.
+    final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs.')),
-      );
+      _showMessage('Renseigne ton email et ton mot de passe.');
       return;
     }
 
     setState(() => _isLoading = true);
-
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
+      await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
-
-      final user = response.user;
-
-      if (user != null && mounted) {
-        String? role;
-        try {
-          final userRecord = await Supabase.instance.client
-              .from('utilisateurs')
-              .select('role')
-              .eq('id_utilisateur', user.id)
-              .maybeSingle();
-          role = userRecord?['role']?.toString();
-        } catch (_) {
-          role = null;
-        }
-        if (!mounted) return;
-        role ??= user.userMetadata?['role']?.toString();
-
-        switch (role?.toLowerCase()) {
-          case 'admin':
-          case 'administrateur':
-            context.go('/admin/dashboard');
-            break;
-          case 'vendeur':
-            context.go('/vendor/shop-management');
-            break;
-          case 'livreur':
-            context.go('/delivery/missions');
-            break;
-          case 'acheteur':
-          default:
-            context.go('/home');
-            break;
-        }
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur de connexion : ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Une erreur est survenue : $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      final session = SessionService.instance;
+      await session.refresh();
+      if (mounted) context.go(session.homePath);
+    } catch (error) {
+      if (mounted) _showMessage(friendlyError(error));
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override

@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_color.dart';
+import '../../core/services/session_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -82,52 +82,19 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkSessionAndProceed() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    final session = SessionService.instance;
+    await Future.wait([
+      session.ready,
+      Future<void>.delayed(const Duration(milliseconds: 800)),
+    ]);
     if (!mounted) return;
 
-    final session = Supabase.instance.client.auth.currentSession;
-
-    if (session != null) {
-      try {
-        final userId = session.user.id;
-        String? role;
-        final userDoc = await Supabase.instance.client
-            .from('utilisateurs')
-            .select('role')
-            .eq('id_utilisateur', userId)
-            .maybeSingle();
-
-        role =
-            userDoc?['role']?.toString() ??
-            session.user.userMetadata?['role']?.toString();
-
-        if (!mounted) return;
-
-        switch (role?.toLowerCase()) {
-          case 'vendeur':
-            context.go('/vendor/shop-management');
-            return;
-          case 'livreur':
-            context.go('/delivery/missions');
-            return;
-          case 'admin':
-          case 'administrateur':
-            context.go('/admin/dashboard');
-            return;
-          case 'acheteur':
-          default:
-            context.go('/home');
-            return;
-        }
-      } catch (_) {
-        if (mounted) context.go('/home');
-        return;
-      }
+    if (session.isLoggedIn) {
+      context.go(session.homePath);
+      return;
     }
 
-    setState(() {
-      _isCheckingSession = false;
-    });
+    setState(() => _isCheckingSession = false);
     _fadeController.forward();
     _startCarouselTimer();
   }

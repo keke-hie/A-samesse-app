@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_color.dart';
 import '../../../core/localization/app_locale.dart';
+import '../../../core/services/session_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -63,12 +64,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'Utilisateur';
   }
 
-  String get _role {
-    return (_profile?['role']?.toString() ??
-            userAuth?.userMetadata?['role']?.toString() ??
-            'acheteur')
-        .toLowerCase();
-  }
+  String get _role => switch (SessionService.instance.role) {
+    UserRole.admin => 'admin',
+    UserRole.vendor => 'vendeur',
+    UserRole.courier => 'livreur',
+    UserRole.buyer => 'acheteur',
+  };
 
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();

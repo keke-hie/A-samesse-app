@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Importations des écrans
+import '../../features/auth/pending_account_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
@@ -25,6 +26,8 @@ import '../../navigation/main_wrapper.dart';
 import '../../navigation/vendor_wrapper.dart';
 import '../../navigation/delivery_wrapper.dart';
 import '../../navigation/admin_wrapper.dart';
+import '../services/session_service.dart';
+import 'route_guard.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
@@ -33,9 +36,15 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
+  refreshListenable: SessionService.instance,
+  redirect: (context, state) => guardRoute(SessionService.instance, state.uri),
   routes: [
     // --- AUTHENTIFICATION ---
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/pending',
+      builder: (context, state) => const PendingAccountScreen(),
+    ),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/register',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +7,7 @@ import 'core/deep_links/deep_link_service.dart';
 import 'core/routes/app_router.dart';
 import 'core/constants/app_color.dart'; // N'oubliez pas d'importer vos couleurs
 import 'core/localization/app_locale.dart';
+import 'core/services/session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +18,8 @@ void main() async {
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtmbm9uYnNzbWJibGF5eGlmb2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MTE4MzgsImV4cCI6MjEwNDA4NzgzOH0.p5Y2NVMLiYza3Pa51vEB3rG5Nfxv3VNIuSTLOyd0wOI',
   );
   await AppLocale.restore();
+  // Chargement du profil (rôle, statut) en parallèle de l'affichage du splash.
+  unawaited(SessionService.instance.init());
 
   runApp(const MyApp());
 

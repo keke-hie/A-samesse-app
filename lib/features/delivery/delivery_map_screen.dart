@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_color.dart';
+import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
 import '../../core/utils/formatters.dart';
 
@@ -60,13 +61,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     }
 
     try {
-      final userRecord = await _supabase
-          .from('utilisateurs')
-          .select('role')
-          .eq('id_utilisateur', userId)
-          .maybeSingle();
-      final role = userRecord?['role']?.toString().toLowerCase();
-      if (role == 'livreur') {
+      if (SessionService.instance.isCourier) {
         final response = await _supabase.rpc(
           'courier_list_assigned_deliveries',
         );

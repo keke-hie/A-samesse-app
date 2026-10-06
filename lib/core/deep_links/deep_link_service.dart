@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../routes/app_router.dart';
+import '../services/session_service.dart';
 
 /// Service central de gestion des deep links de l'application.
 ///
@@ -65,9 +66,11 @@ class DeepLinkService {
     _subscription = null;
   }
 
-  /// Attend la frame suivante (le routeur doit être monté) avant de naviguer.
+  /// Attend que le routeur soit monté et le profil chargé (sinon le garde de
+  /// route renverrait vers le splash) avant de naviguer.
   Future<void> _scheduleHandle(Uri uri) async {
     await WidgetsBinding.instance.endOfFrame;
+    await SessionService.instance.ready;
     await _handleUri(uri);
   }
 
