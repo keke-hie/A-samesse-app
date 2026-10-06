@@ -14,7 +14,8 @@ abstract interface class RouteSession {
 ///
 /// Les données restent protégées côté Supabase (RLS) ; ce garde évite surtout
 /// d'afficher un espace à quelqu'un qui n'y a pas droit (lien direct, deep link).
-String? guardRoute(RouteSession session, Uri uri) {
+/// [adminConsole] : version web, réservée aux administrateurs.
+String? guardRoute(RouteSession session, Uri uri, {bool adminConsole = false}) {
   final path = uri.path;
   bool under(String prefix) => path == prefix || path.startsWith('$prefix/');
 
@@ -26,6 +27,13 @@ String? guardRoute(RouteSession session, Uri uri) {
     return path == '/reset-password' ? null : '/reset-password';
   }
   if (path == '/reset-password') return session.homePath;
+
+  if (adminConsole) {
+    if (!session.isLoggedIn) return path == '/login' ? null : '/login';
+    if (!session.isAdmin) return path == '/admin-only' ? null : '/admin-only';
+    return under('/admin') ? null : '/admin/dashboard';
+  }
+  if (path == '/admin-only') return session.homePath;
 
   if (under('/pay') && !session.isLoggedIn) return '/login';
 

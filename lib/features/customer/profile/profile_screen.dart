@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_color.dart';
+import '../../../core/platform.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -284,17 +285,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       (icon: Icons.map_outlined, label: 'Carte', location: '/delivery/map'),
     ],
-    UserRole.admin => const [
+    UserRole.admin => [
       (
         icon: Icons.dashboard_outlined,
         label: 'Administration',
         location: '/admin/dashboard',
       ),
-      (
-        icon: Icons.home_outlined,
-        label: 'Voir le catalogue client',
-        location: '/home',
-      ),
+      if (!kAdminConsole)
+        (
+          icon: Icons.home_outlined,
+          label: 'Voir le catalogue client',
+          location: '/home',
+        ),
     ],
     UserRole.buyer => const [
       (

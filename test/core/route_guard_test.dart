@@ -92,4 +92,31 @@ void main() {
     expect(guard(session, '/reset-password'), isNull);
     expect(guard(FakeSession(), '/reset-password'), '/home');
   });
+
+  group('console web (admin uniquement)', () {
+    String? console(FakeSession session, String location) =>
+        guardRoute(session, Uri.parse(location), adminConsole: true);
+
+    test('un visiteur arrive sur la connexion', () {
+      final guest = FakeSession(isLoggedIn: false);
+      expect(console(guest, '/splash'), '/login');
+      expect(console(guest, '/home'), '/login');
+      expect(console(guest, '/register'), '/login');
+      expect(console(guest, '/login'), isNull);
+    });
+
+    test('un compte non admin est refusé', () {
+      final vendor = FakeSession(isVendor: true);
+      expect(console(vendor, '/vendor/dashboard'), '/admin-only');
+      expect(console(FakeSession(), '/home'), '/admin-only');
+      expect(console(FakeSession(), '/admin-only'), isNull);
+    });
+
+    test('l’admin ne voit que la console', () {
+      final admin = FakeSession(isAdmin: true);
+      expect(console(admin, '/home'), '/admin/dashboard');
+      expect(console(admin, '/login'), '/admin/dashboard');
+      expect(console(admin, '/admin/management?tab=users'), isNull);
+    });
+  });
 }

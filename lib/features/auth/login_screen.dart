@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_color.dart';
+import '../../core/platform.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/error_message.dart';
@@ -95,14 +96,19 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return AuthScreenShell(
-      title: 'Bon retour !',
-      subtitle: 'Connecte-toi pour retrouver ton espace.',
-      leading: IconButton(
-        tooltip: 'Retour',
-        color: Colors.white,
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-        onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
-      ),
+      title: kAdminConsole ? 'Administration' : 'Bon retour !',
+      subtitle: kAdminConsole
+          ? 'Connecte-toi avec un compte administrateur.'
+          : 'Connecte-toi pour retrouver ton espace.',
+      leading: kAdminConsole
+          ? null
+          : IconButton(
+              tooltip: 'Retour',
+              color: Colors.white,
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/home'),
+            ),
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -135,20 +141,22 @@ class _LoginScreenState extends State<LoginScreen> {
               isLoading: _isLoading,
               onPressed: _login,
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Pas encore de compte ?',
-                  style: TextStyle(color: AppColor.textSecondary),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/register'),
-                  child: const Text('S’inscrire'),
-                ),
-              ],
-            ),
+            if (!kAdminConsole) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Pas encore de compte ?',
+                    style: TextStyle(color: AppColor.textSecondary),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go('/register'),
+                    child: const Text('S’inscrire'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

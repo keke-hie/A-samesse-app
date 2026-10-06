@@ -29,6 +29,10 @@
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
 
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choisis des photos pour tes produits, ta boutique, ton profil ou tes pièces justificatives.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Prends en photo tes produits ou tes pièces justificatives.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Votre position est partagée avec l’acheteur uniquement pendant une livraison active.</string>
 	<key>UIApplicationSceneManifest</key>

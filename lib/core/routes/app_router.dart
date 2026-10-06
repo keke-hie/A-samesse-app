@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Importations des écrans
+import '../../features/auth/admin_only_screen.dart';
 import '../../features/auth/pending_account_screen.dart';
 import '../../features/auth/reset_password_screen.dart';
 import '../../features/auth/splash_screen.dart';
@@ -29,6 +30,7 @@ import '../../navigation/main_wrapper.dart';
 import '../../navigation/vendor_wrapper.dart';
 import '../../navigation/delivery_wrapper.dart';
 import '../../navigation/admin_wrapper.dart';
+import '../platform.dart';
 import '../services/session_service.dart';
 import 'route_guard.dart';
 
@@ -40,10 +42,18 @@ final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
   refreshListenable: SessionService.instance,
-  redirect: (context, state) => guardRoute(SessionService.instance, state.uri),
+  redirect: (context, state) => guardRoute(
+    SessionService.instance,
+    state.uri,
+    adminConsole: kAdminConsole,
+  ),
   routes: [
     // --- AUTHENTIFICATION ---
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/admin-only',
+      builder: (context, state) => const AdminOnlyScreen(),
+    ),
     GoRoute(
       path: '/pay/:orderId',
       builder: (context, state) =>

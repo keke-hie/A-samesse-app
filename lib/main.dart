@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/deep_links/deep_link_service.dart';
+import 'core/platform.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/session_service.dart';
 import 'core/theme/app_theme.dart';
@@ -34,7 +35,7 @@ class AsamesseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: "A'samesse",
+      title: kAdminConsole ? "A'samesse · Administration" : "A'samesse",
       debugShowCheckedModeBanner: false,
       locale: const Locale('fr'),
       supportedLocales: const [Locale('fr')],
