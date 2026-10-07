@@ -28,7 +28,7 @@ Service central : `lib/core/deep_links/deep_link_service.dart`
 | `/orders`, `/commandes` | `/orders` |
 | `/profile`, `/profil` | `/profile` |
 | `/shops/{id}`, `/boutique/{id}` | `/shops/{id}` |
-| `/product/{id}`, `/produit/{id}`, `/p/{id}` | `/home/product-detail` (produit chargé depuis Supabase) |
+| `/product/{id}`, `/produit/{id}`, `/p/{id}` | `/home/product/{id}` (la fiche charge le produit par identifiant) |
 | `/vendor`, `/vendeur` | `/vendor/dashboard` |
 | `/delivery`, `/livreur` | `/delivery/missions` |
 | `/admin` | `/admin/dashboard` |

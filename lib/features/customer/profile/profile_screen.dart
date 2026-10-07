@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/constants/app_color.dart';
-import '../../../core/localization/app_locale.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../../core/constants/app_color.dart';
+import '../../../core/platform.dart';
+import '../../../core/services/session_service.dart';
+import '../../../core/utils/error_message.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/status_chip.dart';
+
+/// Profil commun aux quatre espaces ; les raccourcis dépendent du rôle.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -12,441 +18,302 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  User? userAuth;
-  Map<String, dynamic>? _profile;
-  bool _isLoading = true;
-  String? _error;
+  bool _uploadingAvatar = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
+  static const _roleLabels = {
+    UserRole.buyer: 'Client',
+    UserRole.vendor: 'Vendeur',
+    UserRole.courier: 'Livreur',
+    UserRole.admin: 'Administrateur',
+  };
 
-  Future<void> _loadProfile() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _editName(String current) async {
+    final controller = TextEditingController(text: current);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mon nom'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Nom complet'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) return;
     try {
-      final client = Supabase.instance.client;
-      final user = client.auth.currentUser;
-      Map<String, dynamic>? row;
-      if (user != null) {
-        row = await client
-            .from('utilisateurs')
-            .select()
-            .eq('id_utilisateur', user.id)
-            .maybeSingle();
-      }
-      if (!mounted) return;
-      setState(() {
-        userAuth = user;
-        _profile = row == null ? null : Map<String, dynamic>.from(row);
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        userAuth = Supabase.instance.client.auth.currentUser;
-        _error = e.toString();
-        _isLoading = false;
-      });
+      await SessionService.instance.updateDisplayName(name);
+    } catch (error) {
+      if (mounted) _showMessage(friendlyError(error));
     }
   }
 
-  String get _displayName {
-    final meta = userAuth?.userMetadata;
-    return _profile?['nom']?.toString() ??
-        meta?['full_name']?.toString() ??
-        meta?['nom']?.toString() ??
-        'Utilisateur';
-  }
-
-  String get _role {
-    return (_profile?['role']?.toString() ??
-            userAuth?.userMetadata?['role']?.toString() ??
-            'acheteur')
-        .toLowerCase();
-  }
-
-  Future<void> _logout() async {
-    await Supabase.instance.client.auth.signOut();
-    if (!mounted) return;
-    context.go('/login');
-  }
-  void _showSettingsModal() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppLocale.text(context, 'Paramètres', 'Settings'),
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.language_outlined),
-                title: Text(AppLocale.text(
-                    context, 'Langue : Français', 'Language: French')),
-                subtitle: Text(AppLocale.text(context,
-                    'Touchez pour basculer FR / EN', 'Tap to switch FR / EN')),
-                onTap: () async {
-                  final current =
-                      Localizations.localeOf(context).languageCode;
-                  await AppLocale.setLanguage(
-                      current == 'fr' ? 'en' : 'fr');
-                  if (mounted) Navigator.pop(sheetContext);
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.refresh_outlined),
-                title: Text(AppLocale.text(
-                    context, 'Actualiser le profil', 'Refresh profile')),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _loadProfile();
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading:
-                    const Icon(Icons.logout_outlined, color: Colors.red),
-                title: Text(
-                  AppLocale.text(context, 'Se déconnecter', 'Sign out'),
-                  style: const TextStyle(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _logout();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _changeAvatar() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 600,
     );
+    if (file == null) return;
+    setState(() => _uploadingAvatar = true);
+    try {
+      await SessionService.instance.updateAvatar(file);
+    } catch (error) {
+      if (mounted) _showMessage(friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
   }
 
-  void _showAdminSettingsSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Administration',
-                  style:
-                      TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.dashboard_outlined),
-                title: const Text('Dashboard admin'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/admin/dashboard');
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Utilisateurs'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/admin/management');
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.report_problem_outlined),
-                title: const Text('Litiges'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/admin/management?tab=disputes');
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading:
-                    const Icon(Icons.logout_outlined, color: Colors.red),
-                title: const Text('Se déconnecter',
-                    style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _logout();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColor.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          "Mon Profil",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+
+  Future<void> _signOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Se déconnecter ?'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.black),
-            onPressed: () {
-              final r = (_role).toLowerCase();
-              if (r.contains('admin')) {
-                _showAdminSettingsSheet();
-              } else {
-                _showSettingsModal();
-              }
-            },
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Se déconnecter'),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColor.primary))
-          : _error != null && userAuth == null
-              ? Center(
+    );
+    if (confirmed != true) return;
+    await SessionService.instance.signOut();
+    if (context.mounted) context.go('/home');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = SessionService.instance;
+    return ListenableBuilder(
+      listenable: session,
+      builder: (context, _) {
+        if (!session.isLoggedIn) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Profil')),
+            body: EmptyState(
+              icon: Icons.person_outline_rounded,
+              title: 'Tu n’es pas connecté',
+              message:
+                  'Connecte-toi pour retrouver tes commandes et ton panier.',
+              actionLabel: 'Se connecter',
+              onAction: () => context.go('/login'),
+            ),
+          );
+        }
+
+        final user = session.user!;
+        final name = session.displayName?.trim().isNotEmpty == true
+            ? session.displayName!.trim()
+            : 'Utilisateur';
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('Profil')),
+          body: RefreshIndicator(
+            onRefresh: session.refresh,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              children: [
+                Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text('Chargement impossible : $_error',
-                        textAlign: TextAlign.center),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadProfile,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                    children: [
-                      if (userAuth == null)
-                        _buildLoggedOut(context)
-                      else ...[
-                        _buildHeader(context),
-                        const SizedBox(height: 16),
-                        _buildShortcuts(context),
-                        const SizedBox(height: 16),
-                        _buildLanguageCard(context),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _logout,
-                          icon: const Icon(Icons.logout_outlined),
-                          label: Text(AppLocale.text(
-                              context, 'Se déconnecter', 'Sign out')),
+                    padding: const EdgeInsets.all(18),
+                    child: Row(
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              radius: 30,
+                              backgroundColor: AppColor.primarySoft,
+                              backgroundImage:
+                                  session.avatarUrl?.isNotEmpty == true
+                                  ? NetworkImage(session.avatarUrl!)
+                                  : null,
+                              child: session.avatarUrl?.isNotEmpty == true
+                                  ? null
+                                  : Text(
+                                      name[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        color: AppColor.primary,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                            ),
+                            Positioned(
+                              right: -10,
+                              bottom: -10,
+                              child: IconButton.filledTonal(
+                                tooltip: 'Changer ma photo',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _uploadingAvatar
+                                    ? null
+                                    : _changeAvatar,
+                                icon: _uploadingAvatar
+                                    ? const SizedBox.square(
+                                        dimension: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.photo_camera_outlined,
+                                        size: 16,
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (user.email != null)
+                                Text(
+                                  user.email!,
+                                  style: const TextStyle(
+                                    color: AppColor.textSecondary,
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              StatusChip(
+                                label: _roleLabels[session.role]!,
+                                color: AppColor.primary,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Modifier mon nom',
+                          onPressed: () => _editName(name),
+                          icon: const Icon(Icons.edit_outlined),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Column(
+                    children: [
+                      for (final shortcut in _shortcuts(session))
+                        ListTile(
+                          leading: Icon(shortcut.icon),
+                          title: Text(shortcut.label),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => context.go(shortcut.location),
+                        ),
                     ],
                   ),
                 ),
-    );
-  }
-
-  Widget _buildLoggedOut(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppLocale.text(
-                context, 'Vous n’êtes pas connecté', 'You are not signed in'),
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            AppLocale.text(
-                context,
-                'Connectez-vous pour retrouver vos commandes et votre panier.',
-                'Sign in to find your orders and cart.'),
-            style: const TextStyle(color: AppColor.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () => context.go('/login'),
-            child: Text(AppLocale.text(context, 'Se connecter', 'Sign in')),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: () => context.go('/register'),
-            child:
-                Text(AppLocale.text(context, 'Créer un compte', 'Sign up')),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildHeader(BuildContext context) {
-    final avatarUrl = _profile?['avatar_url']?.toString();
-    final email = userAuth?.email ?? '';
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: AppColor.primarySoft,
-            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                ? NetworkImage(avatarUrl)
-                : null,
-            child: (avatarUrl == null || avatarUrl.isEmpty)
-                ? const Icon(Icons.person_outline,
-                    color: AppColor.primary, size: 30)
-                : null,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_displayName,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800)),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(email,
-                      style: const TextStyle(
-                          color: AppColor.textSecondary, fontSize: 12)),
-                ],
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColor.primarySoft,
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColor.danger,
                   ),
-                  child: Text(
-                    _role.isEmpty ? 'acheteur' : _role,
-                    style: const TextStyle(
-                        color: AppColor.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700),
-                  ),
+                  onPressed: () => _signOut(context),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Se déconnecter'),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildShortcuts(BuildContext context) {
-    final tiles = <Widget>[
-      ListTile(
-        leading:
-            const Icon(Icons.shopping_bag_outlined, color: AppColor.primary),
-        title: Text(AppLocale.text(context, 'Mes commandes', 'My orders')),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.go('/orders'),
+  List<({IconData icon, String label, String location})> _shortcuts(
+    SessionService session,
+  ) => switch (session.role) {
+    UserRole.vendor => const [
+      (
+        icon: Icons.dashboard_outlined,
+        label: 'Tableau de bord',
+        location: '/vendor/dashboard',
       ),
-      ListTile(
-        leading:
-            const Icon(Icons.shopping_cart_outlined, color: AppColor.primary),
-        title: Text(AppLocale.text(context, 'Mon panier', 'My cart')),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.go('/cart'),
+      (
+        icon: Icons.storefront_outlined,
+        label: 'Ma boutique',
+        location: '/vendor/shop-management',
       ),
-    ];
-    if (_role.contains('vendeur')) {
-      tiles.add(ListTile(
-        leading:
-            const Icon(Icons.storefront_outlined, color: AppColor.primary),
-        title: const Text('My Shop vendeur'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.go('/vendor/dashboard'),
-      ));
-    }
-    if (_role.contains('livreur')) {
-      tiles.add(ListTile(
-        leading: const Icon(Icons.delivery_dining_outlined,
-            color: AppColor.primary),
-        title: const Text('Mes missions'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.go('/delivery/missions'),
-      ));
-    }
-    if (_role.contains('admin')) {
-      tiles.add(ListTile(
-        leading: const Icon(Icons.admin_panel_settings_outlined,
-            color: AppColor.primary),
-        title: const Text('Dashboard admin'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.go('/admin/dashboard'),
-      ));
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+      (
+        icon: Icons.receipt_long_outlined,
+        label: 'Commandes reçues',
+        location: '/vendor/sales',
       ),
-      child: Column(children: tiles),
-    );
-  }
-
-  Widget _buildLanguageCard(BuildContext context) {
-    final isFr = Localizations.localeOf(context).languageCode != 'en';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+      (
+        icon: Icons.home_outlined,
+        label: 'Voir le catalogue client',
+        location: '/home',
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.language_outlined, color: AppColor.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              AppLocale.text(
-                  context, 'Langue de l’application', 'App language'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'fr', label: Text('FR')),
-              ButtonSegment(value: 'en', label: Text('EN')),
-            ],
-            selected: {isFr ? 'fr' : 'en'},
-            onSelectionChanged: (selection) {
-              AppLocale.setLanguage(selection.first);
-            },
-          ),
-        ],
+    ],
+    UserRole.courier => const [
+      (
+        icon: Icons.assignment_outlined,
+        label: 'Mes missions',
+        location: '/delivery/missions',
       ),
-    );
-  }
+      (icon: Icons.map_outlined, label: 'Carte', location: '/delivery/map'),
+    ],
+    UserRole.admin => [
+      (
+        icon: Icons.dashboard_outlined,
+        label: 'Administration',
+        location: '/admin/dashboard',
+      ),
+      if (!kAdminConsole)
+        (
+          icon: Icons.home_outlined,
+          label: 'Voir le catalogue client',
+          location: '/home',
+        ),
+    ],
+    UserRole.buyer => const [
+      (
+        icon: Icons.inventory_2_outlined,
+        label: 'Mes commandes',
+        location: '/orders',
+      ),
+      (
+        icon: Icons.shopping_bag_outlined,
+        label: 'Mon panier',
+        location: '/cart',
+      ),
+      (
+        icon: Icons.local_offer_outlined,
+        label: 'Ventes éphémères',
+        location: '/deals',
+      ),
+    ],
+  };
 }

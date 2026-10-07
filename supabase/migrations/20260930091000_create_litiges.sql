@@ -1,3 +1,10 @@
+-- Litiges : structure alignée sur la table existante (statut_litige,
+-- date_resolution…). Le script complète la table si elle existe déjà et
+-- peut être réexécuté sans risque.
+--
+-- Valeurs de statut_litige utilisées par l'app :
+--   'En attente' (défaut), 'En examen', 'Accepté', 'Rejeté'
+
 create or replace function public.is_current_user_admin()
 returns boolean
 language sql
@@ -17,25 +24,29 @@ grant execute on function public.is_current_user_admin() to authenticated;
 
 create table if not exists public.litiges (
   id_litige uuid primary key default gen_random_uuid(),
-  id_commande uuid not null references public.commandes(id_commande) on delete restrict,
-  id_acheteur uuid not null references public.acheteurs(id_acheteur) on delete restrict,
+  id_commande uuid,
+  id_acheteur uuid,
+  id_vendeur uuid,
+  id_administrateur uuid,
   motif text not null,
-  description text not null,
-  preuves text[] not null default '{}',
-  statut text not null default 'ouvert'
-    check (statut in ('ouvert', 'en_examen', 'accepte', 'rejete', 'rembourse')),
-  decision_admin text,
-  id_administrateur uuid references public.administrateurs(id_administrateur),
-  date_creation timestamptz not null default now(),
-  date_decision timestamptz,
-  constraint litiges_description_non_vide check (length(trim(description)) > 0)
+  description text,
+  detail text,
+  preuve_url text,
+  statut_litige character varying default 'En attente',
+  date_creation timestamptz default now(),
+  date_resolution timestamptz
 );
+
+-- Note de l'administrateur (suivi ou décision communiquée au client).
+alter table public.litiges
+  add column if not exists decision_admin text;
 
 create index if not exists litiges_commande_idx on public.litiges(id_commande);
 create index if not exists litiges_acheteur_idx on public.litiges(id_acheteur);
-create index if not exists litiges_statut_idx on public.litiges(statut);
+create index if not exists litiges_statut_idx on public.litiges(statut_litige);
 
 alter table public.litiges enable row level security;
+grant select, insert, update on public.litiges to authenticated;
 
 drop policy if exists "Acheteur lit ses litiges" on public.litiges;
 create policy "Acheteur lit ses litiges"
@@ -60,6 +71,7 @@ on public.litiges for update to authenticated
 using ((select public.is_current_user_admin()))
 with check ((select public.is_current_user_admin()));
 
+-- Photos de preuve (bucket privé, dossier par acheteur).
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('preuves-litiges', 'preuves-litiges', false, 10485760, array['image/jpeg', 'image/png'])
 on conflict (id) do update set

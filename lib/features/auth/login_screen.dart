@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../core/widgets/apple_button.dart';
+import '../../core/constants/app_color.dart';
+import '../../core/platform.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/session_service.dart';
+import '../../core/utils/error_message.dart';
+import '../../core/widgets/primary_button.dart';
 import 'auth_screen_shell.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -25,154 +29,136 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    // Le mot de passe n'est jamais modifié : un espace peut en faire partie.
+    final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs.')),
-      );
+      _showMessage('Renseigne ton email et ton mot de passe.');
       return;
     }
 
     setState(() => _isLoading = true);
-
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = response.user;
-
-      if (user != null && mounted) {
-        String? role;
-        try {
-          final userRecord = await Supabase.instance.client
-              .from('utilisateurs')
-              .select('role')
-              .eq('id_utilisateur', user.id)
-              .maybeSingle();
-          role = userRecord?['role']?.toString();
-        } catch (_) {
-          role = null;
-        }
-        if (!mounted) return;
-        role ??= user.userMetadata?['role']?.toString();
-
-        switch (role?.toLowerCase()) {
-          case 'admin':
-          case 'administrateur':
-            context.go('/admin/dashboard');
-            break;
-          case 'vendeur':
-            context.go('/vendor/shop-management');
-            break;
-          case 'livreur':
-            context.go('/delivery/missions');
-            break;
-          case 'acheteur':
-          default:
-            context.go('/home');
-            break;
-        }
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur de connexion : ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Une erreur est survenue : $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      await AuthService().signIn(email: email, password: password);
+      if (mounted) context.go(SessionService.instance.homePath);
+    } catch (error) {
+      if (mounted) _showMessage(friendlyError(error));
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _resetPassword() async {
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mot de passe oublié'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Adresse email'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Envoyer le lien'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || email.isEmpty) return;
+    try {
+      await AuthService().sendPasswordReset(email);
+      _showMessage(
+        'Si un compte existe pour $email, un lien de réinitialisation vient d’être envoyé.',
+      );
+    } catch (error) {
+      _showMessage(friendlyError(error));
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return AuthScreenShell(
-      title: 'Bon retour !',
-      subtitle: 'Connectez-vous pour retrouver votre espace.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AuthTextField(
-            controller: _emailController,
-            hintText: "Adresse email",
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-          ),
-          const SizedBox(height: 13),
-          AuthTextField(
-            controller: _passwordController,
-            hintText: "Mot de passe",
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                minimumSize: const Size(0, 30),
-                foregroundColor: AuthScreenShell.headingColor,
-              ),
-              child: const Text(
-                'Mot de passe oublié ?',
-                style: TextStyle(fontSize: 11),
+      title: kAdminConsole ? 'Administration' : 'Bon retour !',
+      subtitle: kAdminConsole
+          ? 'Connecte-toi avec un compte administrateur.'
+          : 'Connecte-toi pour retrouver ton espace.',
+      leading: kAdminConsole
+          ? null
+          : IconButton(
+              tooltip: 'Retour',
+              color: Colors.white,
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/home'),
+            ),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AuthTextField(
+              controller: _emailController,
+              hintText: 'Adresse email',
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+            ),
+            const SizedBox(height: 12),
+            AuthTextField(
+              controller: _passwordController,
+              hintText: 'Mot de passe',
+              obscureText: true,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _login(),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _resetPassword,
+                child: const Text('Mot de passe oublié ?'),
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          _isLoading
-              ? const SizedBox(
-                  height: 48,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : AppleButton(
-                  text: 'Se connecter',
-                  backgroundColor: AuthScreenShell.actionColor,
-                  onPressed: _login,
-                  height: 48,
-                ),
-          const SizedBox(height: 19),
-          Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Text(
-                'Pas encore de compte ?',
-                style: TextStyle(fontSize: 12, color: Color(0xFF9B7779)),
-              ),
-              TextButton(
-                onPressed: () => context.go('/register'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  minimumSize: const Size(0, 32),
-                  foregroundColor: AuthScreenShell.headingColor,
-                ),
-                child: const Text(
-                  'Inscrivez-vous',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
+            const SizedBox(height: 8),
+            PrimaryButton(
+              text: 'Se connecter',
+              isLoading: _isLoading,
+              onPressed: _login,
+            ),
+            if (!kAdminConsole) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Pas encore de compte ?',
+                    style: TextStyle(color: AppColor.textSecondary),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go('/register'),
+                    child: const Text('S’inscrire'),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

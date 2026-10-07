@@ -1,9 +1,17 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../core/constants/app_color.dart';
-import '../../../core/widgets/apple_button.dart';
+import '../../../core/services/product_service.dart';
+import '../../../core/services/session_service.dart';
+import '../../../core/utils/error_message.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/product_image.dart';
+import 'widgets/create_deal_sheet.dart';
 
 class DealsScreen extends StatefulWidget {
   const DealsScreen({super.key});
@@ -13,696 +21,328 @@ class DealsScreen extends StatefulWidget {
 }
 
 class _DealsScreenState extends State<DealsScreen> {
-  final _supabase = Supabase.instance.client;
+  final _productService = ProductService();
+  late final Stream<List<Map<String, dynamic>>> _dealsStream = _productService
+      .watchActiveDeals();
 
-  // Variable de rôle de l'utilisateur
-  bool _isVendor = false;
+  /// Produits des ventes affichées, chargés à la demande.
+  final Map<String, Map<String, dynamic>> _products = {};
+  final Set<String> _loadingProducts = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _checkUserRole();
+  bool get _canCreate {
+    final session = SessionService.instance;
+    return session.isVendor && session.isActive;
   }
 
-  // Vérifier si l'utilisateur connecté est un vendeur pour afficher le bouton "Nouvelle Vente"
-  Future<void> _checkUserRole() async {
+  Future<void> _loadProducts(Iterable<String> ids) async {
+    final missing = ids
+        .where(
+          (id) => !_products.containsKey(id) && !_loadingProducts.contains(id),
+        )
+        .toList();
+    if (missing.isEmpty) return;
+    _loadingProducts.addAll(missing);
     try {
-      final user = _supabase.auth.currentUser;
-      if (user != null) {
-        final data = await _supabase
-            .from(
-              'utilisateurs',
-            ) // Correction : utilisation de la bonne table 'utilisateurs'
-            .select('role')
-            .eq('id_utilisateur', user.id)
-            .maybeSingle();
-
-        if (data != null &&
-            data['role']?.toString().toLowerCase() == 'vendeur') {
-          if (mounted) {
-            setState(() {
-              _isVendor = true;
-            });
-          }
+      final rows = await _productService.fetchProductsByIds(missing);
+      if (!mounted) return;
+      setState(() {
+        for (final row in rows) {
+          _products[row['id_produit'].toString()] = row;
         }
-      }
-    } catch (_) {}
+      });
+    } catch (_) {
+      // Les cartes restent affichées sans photo.
+    } finally {
+      _loadingProducts.removeAll(missing);
+    }
   }
 
-  // Écouter en temps réel la table `ventes_ephemeres`
-  Stream<List<Map<String, dynamic>>> _getVentesEphemeresStream() {
-    return _supabase
-        .from('ventes_ephemeres')
-        .stream(primaryKey: ['id_vente_ephemere'])
-        .eq('statut', 'actif')
-        .gt('date_fin', DateTime.now().toIso8601String())
-        .order('date_fin', ascending: true);
+  Future<void> _createDeal() async {
+    final created = await showCreateDealSheet(context);
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vente publiée !')));
+    }
   }
 
-  // Génération et partage du lien d'accès à la vente éphémère
-  void _shareDeal(String dealId, String typeVente) {
-    final String dealLink = "https://asamesse.app/deal/$dealId";
+  void _share(Map<String, dynamic> deal) {
+    final type = deal['type_vente']?.toString() ?? 'Vente flash';
+    final name = deal['nom_vente']?.toString().trim();
     Share.share(
-      "🔥 Profitez de notre $typeVente sur A'samesse ! Cliquez ici pour y accéder : $dealLink",
-      subject: "$typeVente sur A'samesse",
-    );
-  }
-
-  // Durée minimale et maximale autorisées pour une vente éphémère.
-  static const Duration _minDealDuration = Duration(hours: 1);
-  static const Duration _maxDealDuration = Duration(days: 30);
-
-  String _formatPreset(Duration duration) {
-    if (duration.inDays >= 1) {
-      return duration.inDays == 1 ? '24 h' : '${duration.inDays} jours';
-    }
-    return '${duration.inHours} h';
-  }
-
-  String _formatEndDate(DateTime date) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(date.day)}/${two(date.month)}/${date.year} '
-        'à ${two(date.hour)}:${two(date.minute)}';
-  }
-
-  String? _validateEndDate(DateTime endDate, DateTime now) {
-    if (!endDate.isAfter(now.add(_minDealDuration))) {
-      return "La fin de la vente doit être au moins 1 heure après maintenant.";
-    }
-    if (endDate.isAfter(now.add(_maxDealDuration))) {
-      return "La fin de la vente ne peut pas dépasser 30 jours.";
-    }
-    return null;
-  }
-
-  Future<DateTime?> _pickEndDate(BuildContext context, DateTime initial) async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial.isBefore(now) ? now : initial,
-      firstDate: now,
-      lastDate: now.add(_maxDealDuration),
-      helpText: "Date de fin de la vente",
-    );
-    if (date == null || !context.mounted) return null;
-
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-      helpText: "Heure de fin de la vente",
-    );
-    if (time == null) return null;
-
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
-
-  // Boîte de dialogue pour créer une nouvelle vente éphémère (Réservée au vendeur)
-  Future<void> _showCreateDealDialog() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-    List<Map<String, dynamic>> products;
-    try {
-      final response = await _supabase
-          .from('produits')
-          .select('id_produit, nom_produit, prix')
-          .eq('id_vendeur', user.id)
-          .order('date_ajout', ascending: false);
-      products = List<Map<String, dynamic>>.from(response);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Chargement des produits impossible : $error'),
-          ),
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    if (products.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ajoutez un produit avant de créer une vente.'),
-        ),
-      );
-      return;
-    }
-
-    String selectedProductId = products.first['id_produit'].toString();
-    final nomController = TextEditingController();
-    final prixPromoController = TextEditingController();
-    String typeVente = "Vente Flash";
-    DateTime endDate = DateTime.now().add(const Duration(hours: 24));
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text("Créer une vente éphémère"),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nomController,
-                      maxLength: 60,
-                      decoration: const InputDecoration(
-                        labelText: "Nom de la vente",
-                        hintText: "Ex : Vide-dressing de marque",
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: typeVente,
-                      decoration: const InputDecoration(
-                        labelText: "Type de vente",
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: "Vente Flash",
-                          child: Text("Vente Flash"),
-                        ),
-                        DropdownMenuItem(
-                          value: "Vide Dressing",
-                          child: Text("Vide Dressing"),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => typeVente = val);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedProductId,
-                      decoration: const InputDecoration(
-                        labelText: 'Produit concerné',
-                      ),
-                      items: products.map((product) {
-                        final id = product['id_produit'].toString();
-                        final name =
-                            product['nom_produit']?.toString() ?? 'Produit';
-                        return DropdownMenuItem(
-                          value: id,
-                          child: Text(name, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() => selectedProductId = value);
-                        }
-                      },
-                    ),
-                    TextField(
-                      controller: prixPromoController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: "Prix Promo (FCFA)",
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          for (final preset in const [
-                            Duration(hours: 6),
-                            Duration(days: 1),
-                            Duration(days: 3),
-                            Duration(days: 7),
-                            Duration(days: 30),
-                          ])
-                            ActionChip(
-                              label: Text(_formatPreset(preset)),
-                              onPressed: () => setDialogState(
-                                () => endDate = DateTime.now().add(preset),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.event),
-                      label: Text("Fin de la vente : ${_formatEndDate(endDate)}"),
-                      onPressed: () async {
-                        final picked = await _pickEndDate(context, endDate);
-                        if (picked != null) {
-                          setDialogState(() => endDate = picked);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Durée personnalisable : de quelques heures à 30 jours maximum.",
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Annuler"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColor.primary,
-                  ),
-                  onPressed: () async {
-                    final nom = nomController.text.trim();
-                    if (nom.isEmpty ||
-                        prixPromoController.text.isEmpty ||
-                        (double.tryParse(prixPromoController.text) ?? 0) <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Veuillez renseigner le nom de la vente et un prix promo valide.",
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    final now = DateTime.now();
-                    final validationError = _validateEndDate(endDate, now);
-                    if (validationError != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(validationError)),
-                      );
-                      return;
-                    }
-
-                    await _supabase.from('ventes_ephemeres').insert({
-                      'nom_vente': nom,
-                      'id_produit': selectedProductId,
-                      'prix_promo': double.parse(prixPromoController.text),
-                      'type_vente': typeVente,
-                      'date_debut': now.toIso8601String(),
-                      'date_fin': endDate.toIso8601String(),
-                      'statut': 'actif',
-                    });
-
-                    if (!context.mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("« $nom » publiée avec succès !")),
-                    );
-                  },
-                  child: const Text(
-                    "Publier",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      '🔥 ${name?.isNotEmpty == true ? name : type} sur A’samesse : '
+      'https://asamesse.app/produit/${deal['id_produit']}',
+      subject: '$type sur A’samesse',
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColor.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          "A'samesse",
-          style: TextStyle(
-            color: AppColor.primary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
-            onPressed: () {
-              showSearch(context: context, delegate: ProductSearchDelegate());
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: Colors.black),
-            onPressed: () {
-              Navigator.pushNamed(context, '/profile');
-            },
-          ),
-        ],
-      ),
-      // Le bouton de création de vente n'apparaît QUE si l'utilisateur est un vendeur
-      floatingActionButton: _isVendor
+      appBar: AppBar(title: const Text('Ventes éphémères')),
+      floatingActionButton: _canCreate
           ? FloatingActionButton.extended(
-              onPressed: _showCreateDealDialog,
-              backgroundColor: AppColor.primary,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                "Nouvelle Vente",
-                style: TextStyle(color: Colors.white),
-              ),
+              onPressed: _createDeal,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nouvelle vente'),
             )
           : null,
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _getVentesEphemeresStream(),
+        stream: _dealsStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError) {
+            return EmptyState(
+              icon: Icons.cloud_off_outlined,
+              title: 'Impossible de charger les ventes',
+              message: friendlyError(snapshot.error!),
+            );
+          }
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          // Le flux temps réel ne filtre pas sur l'heure : on retire les ventes terminées.
+          final now = DateTime.now();
+          final deals = snapshot.data!.where((deal) {
+            final end = DateTime.tryParse(deal['date_fin']?.toString() ?? '');
+            return end != null && end.isAfter(now);
+          }).toList();
+          if (deals.isEmpty) {
+            return const EmptyState(
+              icon: Icons.bolt_outlined,
+              title: 'Aucune vente en cours',
+              message:
+                  'Reviens bientôt : les ventes flash et vide-dressings apparaissent ici.',
+            );
+          }
+          _loadProducts(deals.map((deal) => deal['id_produit'].toString()));
 
-          final deals = snapshot.data ?? [];
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Ventes Éphémères",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Ventes Flash & Vide Dressings à durée limitée. Dépêchez-vous avant la fin du décompte !",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-                const SizedBox(height: 20),
-
-                // Bannière de décompte de la vente la plus proche de l'expiration
-                if (deals.isNotEmpty)
-                  _LiveTimerBanner(
-                    dateFinStr: deals.first['date_fin'],
-                    nom: deals.first['nom_vente']?.toString(),
-                  ),
-
-                const SizedBox(height: 20),
-
-                if (deals.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: Text(
-                        "Aucune vente éphémère en cours.\nRevenez plus tard pour de superbes offres !",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
-                      ),
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: deals.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      return _buildDealCard(deals[index]);
-                    },
-                  ),
-
-                const SizedBox(height: 80),
-              ],
-            ),
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+            itemCount: deals.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _CountdownBanner(
+                  endsAt: DateTime.parse(deals.first['date_fin'].toString()),
+                  title: deals.first['nom_vente']?.toString(),
+                );
+              }
+              final deal = deals[index - 1];
+              return _DealCard(
+                deal: deal,
+                product: _products[deal['id_produit'].toString()],
+                onShare: () => _share(deal),
+              );
+            },
           );
         },
       ),
     );
   }
+}
 
-  Widget _buildDealCard(Map<String, dynamic> deal) {
-    final String idVente = deal['id_vente_ephemere'].toString();
-    final double prixPromo = (deal['prix_promo'] ?? 0).toDouble();
-    final String typeVente = deal['type_vente'] ?? 'Vente Flash';
-    final String nomVente = (deal['nom_vente']?.toString() ?? '').trim();
+class _DealCard extends StatelessWidget {
+  const _DealCard({
+    required this.deal,
+    required this.product,
+    required this.onShare,
+  });
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  height: 180,
-                  width: double.infinity,
-                  color: Colors.grey[200],
-                  child: const Icon(
-                    Icons.shopping_bag,
-                    size: 50,
-                    color: Colors.grey,
+  final Map<String, dynamic> deal;
+  final Map<String, dynamic>? product;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = deal['type_vente']?.toString() ?? 'Vente Flash';
+    final name = deal['nom_vente']?.toString().trim() ?? '';
+    final productName = product?['nom_produit']?.toString() ?? 'Produit';
+    final productId = deal['id_produit']?.toString();
+    final basePrice = parseAmount(product?['prix']);
+    final promoPrice = parseAmount(deal['prix_promo']);
+    final discount = basePrice != null && promoPrice != null && basePrice > 0
+        ? ((1 - promoPrice / basePrice) * 100).round()
+        : null;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: productId == null
+            ? null
+            : () => context.push('/home/product/$productId'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 10,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ProductImage(url: product?['image_url']?.toString()),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Chip(
+                      label: Text(
+                        type == 'Vide Dressing'
+                            ? 'Vide-dressing'
+                            : 'Vente flash',
+                      ),
+                      backgroundColor: AppColor.primary,
+                      labelStyle: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      side: BorderSide.none,
+                    ),
                   ),
-                ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: IconButton.filledTonal(
+                      tooltip: 'Partager',
+                      onPressed: onShare,
+                      icon: const Icon(Icons.share_outlined),
+                    ),
+                  ),
+                ],
               ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name.isEmpty ? productName : name,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  decoration: BoxDecoration(
-                    color: typeVente == 'Vide Dressing'
-                        ? Colors.purple
-                        : AppColor.primary,
-                    borderRadius: BorderRadius.circular(12),
+                  if (name.isNotEmpty)
+                    Text(
+                      productName,
+                      style: const TextStyle(color: AppColor.textSecondary),
+                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        formatPrice(promoPrice),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColor.primary,
+                        ),
+                      ),
+                      if (basePrice != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          formatPrice(basePrice),
+                          style: const TextStyle(
+                            color: AppColor.textMuted,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      if (discount != null && discount > 0)
+                        Text(
+                          '-$discount %',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppColor.success,
+                          ),
+                        ),
+                    ],
                   ),
-                  child: Text(
-                    typeVente.toUpperCase(),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Jusqu’au ${formatDate(deal['date_fin'], withTime: true)}',
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: AppColor.textSecondary,
                     ),
                   ),
-                ),
+                ],
               ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.share,
-                      color: Colors.black,
-                      size: 20,
-                    ),
-                    onPressed: () => _shareDeal(idVente, typeVente),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            nomVente.isNotEmpty
-                ? nomVente
-                : "$typeVente - Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          if (nomVente.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              "$typeVente · Produit #${deal['id_produit'] ?? deal['id_produit_legacy'] ?? 'à associer'}",
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
-          const SizedBox(height: 4),
-          Text(
-            "${prixPromo.toStringAsFixed(0)} FCFA",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColor.primary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          AppleButton(
-            text: "Acheter Maintenant",
-            icon: Icons.shopping_bag_outlined,
-            onPressed: () {
-              // Action d'achat
-            },
-            height: 46,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Widget séparé pour le décompte en temps réel (évite de recharger tout l'écran chaque seconde)
-class _LiveTimerBanner extends StatefulWidget {
-  final String dateFinStr;
-  final String? nom;
-  const _LiveTimerBanner({required this.dateFinStr, this.nom});
+/// Décompte de la vente qui se termine le plus tôt (seul ce widget se
+/// reconstruit chaque seconde).
+class _CountdownBanner extends StatefulWidget {
+  const _CountdownBanner({required this.endsAt, this.title});
+
+  final DateTime endsAt;
+  final String? title;
 
   @override
-  State<_LiveTimerBanner> createState() => _LiveTimerBannerState();
+  State<_CountdownBanner> createState() => _CountdownBannerState();
 }
 
-class _LiveTimerBannerState extends State<_LiveTimerBanner> {
-  Timer? _timer;
+class _CountdownBannerState extends State<_CountdownBanner> {
+  late final Timer _timer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final dateFin = DateTime.tryParse(widget.dateFinStr) ?? DateTime.now();
-    final diff = dateFin.difference(DateTime.now());
-    final isLongSale = diff.inDays >= 1;
+    final remaining = widget.endsAt.difference(DateTime.now());
+    final safe = remaining.isNegative ? Duration.zero : remaining;
+    String two(int value) => value.toString().padLeft(2, '0');
 
-    final hours = diff.inHours.clamp(0, 99).toString().padLeft(2, '0');
-    final minutes = (diff.inMinutes % 60)
-        .clamp(0, 59)
-        .toString()
-        .padLeft(2, '0');
-    final seconds = (diff.inSeconds % 60)
-        .clamp(0, 59)
-        .toString()
-        .padLeft(2, '0');
-
-    String formatFull(DateTime date) {
-      String two(int value) => value.toString().padLeft(2, '0');
-      return '${two(date.day)}/${two(date.month)}/${date.year} '
-          'à ${two(date.hour)}:${two(date.minute)}';
-    }
-
-    final urgencyLabel = isLongSale
-        ? "Se termine dans ${diff.inDays} jour${diff.inDays > 1 ? 's' : ''}"
-        : "Fin dans";
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColor.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          if (widget.nom != null && widget.nom!.trim().isNotEmpty) ...[
-            Text(
-              widget.nom!.trim(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 6),
-          ],
-          Row(
-            children: [
-              Icon(Icons.bolt, color: AppColor.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  urgencyLabel,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColor.primary,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.bolt_rounded, color: AppColor.gold, size: 30),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title?.trim().isNotEmpty == true
+                        ? widget.title!.trim()
+                        : 'Prochaine fin de vente',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    safe.inDays >= 1
+                        ? 'Se termine dans ${safe.inDays} j ${safe.inHours % 24} h'
+                        : '${two(safe.inHours)} : ${two(safe.inMinutes % 60)} : ${two(safe.inSeconds % 60)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (isLongSale)
-            Text(
-              "Jusqu'au ${formatFull(dateFin)}",
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildTimerBox(hours, "HEURES"),
-                const Text(
-                  " : ",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-                ),
-                _buildTimerBox(minutes, "MINUTES"),
-                const Text(
-                  " : ",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-                ),
-                _buildTimerBox(seconds, "SECONDES"),
-              ],
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
-
-  Widget _buildTimerBox(String value, String label) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColor.primary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 9,
-            color: Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class ProductSearchDelegate extends SearchDelegate {
-  @override
-  List<Widget>? buildActions(BuildContext context) => [
-    IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
-  ];
-
-  @override
-  Widget? buildLeading(BuildContext context) => IconButton(
-    icon: const Icon(Icons.arrow_back),
-    onPressed: () => close(context, null),
-  );
-
-  @override
-  Widget buildResults(BuildContext context) =>
-      Center(child: Text("Résultats pour : $query"));
-
-  @override
-  Widget buildSuggestions(BuildContext context) =>
-      const Center(child: Text("Rechercher un produit ou une vente..."));
 }

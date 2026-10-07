@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Importations des écrans
+import '../../features/auth/admin_only_screen.dart';
+import '../../features/auth/pending_account_screen.dart';
+import '../../features/auth/reset_password_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
@@ -10,6 +13,7 @@ import '../../features/customer/home/product_detail_screen.dart';
 import '../../features/customer/deals/deals_screen.dart';
 import '../../features/customer/cart/cart_screen.dart';
 import '../../features/customer/orders/order_tracking_screen.dart';
+import '../../features/customer/payment/payment_screen.dart';
 import '../../features/customer/profile/profile_screen.dart';
 import 'package:asamesse_app/features/vendor/marketing_ia_screen.dart';
 import '../../features/vendor/campaign_editor_screen.dart';
@@ -17,14 +21,18 @@ import '../../features/vendor/shop_management_screen.dart';
 import '../../features/vendor/vendor_storefront_screen.dart';
 import '../../features/vendor/vendor_orders_screen.dart';
 import '../../features/vendor/vendor_dashboard_screen.dart';
-import '../../features/delivery/delivery_map_screen.dart';
+import '../../features/delivery/courier_map_screen.dart';
+import '../../features/delivery/courier_missions_screen.dart';
+import '../../features/delivery/delivery_tracking_screen.dart';
 import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/admin_management_screen.dart';
-import '../../features/admin/analytics_screen.dart';
 import '../../navigation/main_wrapper.dart';
 import '../../navigation/vendor_wrapper.dart';
 import '../../navigation/delivery_wrapper.dart';
 import '../../navigation/admin_wrapper.dart';
+import '../platform.dart';
+import '../services/session_service.dart';
+import 'route_guard.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
@@ -33,9 +41,32 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
+  refreshListenable: SessionService.instance,
+  redirect: (context, state) => guardRoute(
+    SessionService.instance,
+    state.uri,
+    adminConsole: kAdminConsole,
+  ),
   routes: [
     // --- AUTHENTIFICATION ---
     GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/admin-only',
+      builder: (context, state) => const AdminOnlyScreen(),
+    ),
+    GoRoute(
+      path: '/pay/:orderId',
+      builder: (context, state) =>
+          PaymentScreen(orderId: state.pathParameters['orderId']!),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => const ResetPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/pending',
+      builder: (context, state) => const PendingAccountScreen(),
+    ),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/register',
@@ -54,9 +85,10 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const HomeScreen(),
           routes: [
             GoRoute(
-              path: 'product-detail',
+              path: 'product/:productId',
               builder: (context, state) => ProductDetailScreen(
-                product: state.extra as Map<String, dynamic>?,
+                productId: state.pathParameters['productId']!,
+                initialProduct: state.extra as Map<String, dynamic>?,
               ),
             ),
           ],
@@ -65,16 +97,18 @@ final GoRouter appRouter = GoRouter(
           path: '/deals',
           builder: (context, state) => const DealsScreen(),
         ),
-        GoRoute(
-          path: '/cart',
-          builder: (context, state) =>
-              CartScreen(extraData: state.extra as Map<String, dynamic>?),
-        ),
+        GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
         GoRoute(
           path: '/orders',
-          builder: (context, state) => OrderTrackingScreen(
-            orderData: state.extra as Map<String, dynamic>?,
-          ),
+          builder: (context, state) => const OrderTrackingScreen(),
+          routes: [
+            GoRoute(
+              path: 'track/:orderId',
+              builder: (context, state) => DeliveryTrackingScreen(
+                orderId: state.pathParameters['orderId']!,
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/profile',
@@ -114,7 +148,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: '/vendor/marketing-ia',
-          builder: (context, state) => MarketingiaScreen(
+          builder: (context, state) => MarketingAiScreen(
             initialPlatform: state.uri.queryParameters['platform'],
           ),
         ),
@@ -123,7 +157,7 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) {
             final content = state.extra as Map<String, dynamic>?;
             return content == null
-                ? MarketingiaScreen()
+                ? MarketingAiScreen()
                 : CampaignEditorScreen(initialContent: content);
           },
         ),
@@ -145,20 +179,20 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/delivery/missions',
-          builder: (context, state) =>
-              const DeliveryMapScreen(missionsOnly: true),
+          builder: (context, state) => const CourierMissionsScreen(),
         ),
         GoRoute(
           path: '/delivery/map',
-          builder: (context, state) {
-            final extra = state.extra as Map<String, dynamic>?;
-            return DeliveryMapScreen(
-              idCommande:
-                  extra?['id_commande']?.toString() ?? extra?['id']?.toString(),
-              extraData: extra,
-              mapOnly: true,
-            );
-          },
+          builder: (context, state) => const CourierMapScreen(),
+          routes: [
+            GoRoute(
+              path: ':orderId',
+              builder: (context, state) => DeliveryTrackingScreen(
+                orderId: state.pathParameters['orderId']!,
+                courierMode: true,
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/delivery/profile',
@@ -176,13 +210,9 @@ final GoRouter appRouter = GoRouter(
           builder: (context, state) => const AdminDashboardScreen(),
         ),
         GoRoute(
-          path: '/admin/analytics',
-          builder: (context, state) => const AnalyticsScreen(),
-        ),
-        GoRoute(
           path: '/admin/management',
           builder: (context, state) => AdminManagementScreen(
-            initialTab: state.uri.queryParameters['tab'] == 'disputes' ? 1 : 0,
+            tab: AdminTab.parse(state.uri.queryParameters['tab']),
           ),
         ),
         GoRoute(

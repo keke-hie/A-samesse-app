@@ -1,11 +1,11 @@
 {
-    "name": "asamesse_app",
-    "short_name": "asamesse_app",
+    "name": "A'samesse · Administration",
+    "short_name": "A'samesse Admin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Console d'administration A'samesse",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,37 +1,43 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'session_service.dart';
+
+/// Connexion, inscription et réinitialisation du mot de passe.
+/// Après connexion, le profil est rechargé pour que le routeur connaisse le rôle.
 class AuthService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  AuthService([SupabaseClient? client])
+    : _supabase = client ?? Supabase.instance.client;
 
-  // Inscription réelle avec Supabase
-  Future<AuthResponse> signUp({
+  final SupabaseClient _supabase;
+
+  Future<void> signIn({required String email, required String password}) async {
+    await _supabase.auth.signInWithPassword(email: email, password: password);
+    await SessionService.instance.refresh();
+  }
+
+  /// Renvoie `true` si une session est ouverte, `false` si l'email doit
+  /// d'abord être confirmé.
+  Future<bool> signUp({
     required String email,
     required String password,
-    required String fullName,
+    required Map<String, dynamic> metadata,
   }) async {
-    return await _supabase.auth.signUp(
+    final response = await _supabase.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName},
+      data: metadata,
+      emailRedirectTo: _webRedirect,
     );
+    if (response.session == null) return false;
+    await SessionService.instance.refresh();
+    return true;
   }
 
-  // Connexion réelle avec Supabase
-  Future<AuthResponse> signIn({
-    required String email,
-    required String password,
-  }) async {
-    return await _supabase.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-  }
+  Future<void> sendPasswordReset(String email) =>
+      _supabase.auth.resetPasswordForEmail(email, redirectTo: _webRedirect);
 
-  // Déconnexion
-  Future<void> signOut() async {
-    await _supabase.auth.signOut();
-  }
-
-  // Récupérer l'utilisateur courant
-  User? get currentUser => _supabase.auth.currentUser;
+  /// Sur le web, les liens des e-mails reviennent sur le site courant (l'URL
+  /// doit figurer dans Authentication > URL Configuration de Supabase).
+  static String? get _webRedirect => kIsWeb ? Uri.base.origin : null;
 }

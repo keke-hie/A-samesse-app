@@ -1,10 +1,11 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../routes/app_router.dart';
+import '../services/session_service.dart';
 
 /// Service central de gestion des deep links de l'application.
 ///
@@ -40,6 +41,9 @@ class DeepLinkService {
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
+    // Sur le web, l'URL du navigateur est déjà gérée par go_router : la traiter
+    // ici renverrait vers l'accueil à chaque rechargement de page.
+    if (kIsWeb) return;
 
     // Lien ayant provoqué le lancement de l'application (cold start).
     try {
@@ -65,9 +69,11 @@ class DeepLinkService {
     _subscription = null;
   }
 
-  /// Attend la frame suivante (le routeur doit être monté) avant de naviguer.
+  /// Attend que le routeur soit monté et le profil chargé (sinon le garde de
+  /// route renverrait vers le splash) avant de naviguer.
   Future<void> _scheduleHandle(Uri uri) async {
     await WidgetsBinding.instance.endOfFrame;
+    await SessionService.instance.ready;
     await _handleUri(uri);
   }
 
@@ -157,7 +163,7 @@ class DeepLinkService {
       case 'produit':
       case 'produits':
       case 'p':
-        await _openProduct(segments.length > 1 ? segments[1] : null);
+        _openProduct(segments.length > 1 ? segments[1] : null);
         break;
       case 'vendor':
       case 'vendeur':
@@ -188,28 +194,12 @@ class DeepLinkService {
     return segments;
   }
 
-  /// Ouvre la fiche produit correspondant à [productId].
-  ///
-  /// La fiche produit attend une `Map` complète : on la charge depuis Supabase
-  /// puis on navigue via l'événement `extra` de `go_router`.
-  Future<void> _openProduct(String? productId) async {
+  /// Ouvre la fiche produit : elle charge elle-même le produit par identifiant.
+  void _openProduct(String? productId) {
     if (productId == null || productId.isEmpty) {
       appRouter.go('/home');
       return;
     }
-    try {
-      final product = await Supabase.instance.client
-          .from('produits')
-          .select('*')
-          .eq('id_produit', productId)
-          .maybeSingle();
-      if (product != null) {
-        appRouter.go('/home/product-detail', extra: product);
-        return;
-      }
-    } catch (error) {
-      debugPrint('DeepLinkService : produit introuvable ($error)');
-    }
-    appRouter.go('/home');
+    appRouter.go('/home/product/${Uri.encodeComponent(productId)}');
   }
 }
